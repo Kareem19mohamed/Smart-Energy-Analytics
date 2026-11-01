@@ -220,8 +220,4 @@ __marimo__/
 .streamlit/secrets.toml
 
 
-# Data folders
-data/raw/*
-!data/raw/.gitkeep
-data/processed/*
-!data/processed/.gitkeep
+
