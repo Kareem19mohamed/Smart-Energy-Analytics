@@ -1,14 +1,31 @@
+"""
+Smart Energy Analytics — Pipeline Entry Point.
+
+Orchestrates ingestion, month-by-month temporal resampling,
+environmental dataset alignment, and per-house export.
+"""
 from pathlib import Path
 import pandas as pd
 from src.data_processing import data_ingestion as ingestion, data_transformation as transformation
-
 
 root_dir = Path("C:/Users/kareem/OneDrive/Desktop/target_houses")
 output_folder = Path("data/processed")
 output_folder.mkdir(exist_ok=True)
 
 
-def run_pipeline():
+def run_pipeline() -> None:
+    """
+    Execute the data ingestion and preprocessing pipeline across all target houses.
+
+    Steps per house:
+      1. Discover and load monthly electrical CSV files (excluding metadata).
+      2. Resample each monthly electrical file individually to 15-minute intervals
+         to preserve monthly data integrity.
+      3. Concatenate the resampled monthly electrical frames.
+      4. Load and concatenate environmental CSV files.
+      5. Join electrical and environmental frames on their DatetimeIndex.
+      6. Export the final merged dataset to data/processed/<house_name>.csv.
+    """
     for house in sorted(root_dir.iterdir()):
         if not house.is_dir():
             continue
