@@ -1,0 +1,64 @@
+house,issue_type,row,column,original_value,new_value
+House_01,Artificial Missing Value,42008,V,234.84067777777778,NaN
+House_01,Artificial Missing Value,7353,V,235.13745555555553,NaN
+House_01,Artificial Missing Value,1669,V,231.82833333333332,NaN
+House_01,Artificial Missing Value,18093,V,233.1134111111111,NaN
+House_01,Artificial Missing Value,16118,V,238.57042222222222,NaN
+House_01,Artificial Missing Value,14698,A,0.26168888888888886,NaN
+House_01,Artificial Missing Value,9201,A,0.2693888888888889,NaN
+House_01,Artificial Missing Value,6774,A,0.4414222222222222,NaN
+House_01,Artificial Missing Value,35845,A,4.56978888888889,NaN
+House_01,Artificial Missing Value,5754,A,0.6578444444444445,NaN
+House_01,Outlier,38805,V,231.75573333333332,300
+House_01,Outlier,27731,P_agg,49.78887777777778,15000
+House_01,Outlier,2112,ac_1,2.9575222222222224,6000
+House_01,Duplicate Record,1952,All columns,Original row,Duplicated row
+House_01,Duplicate Record,6140,All columns,Original row,Duplicated row
+House_01,Stuck Sensor,14434,internal_temperature,20.2,20.2
+House_01,Stuck Sensor,14435,internal_temperature,20.2,20.2
+House_01,Stuck Sensor,14436,internal_temperature,20.2,20.2
+House_01,Stuck Sensor,14437,internal_temperature,20.2,20.2
+House_01,Stuck Sensor,14438,internal_temperature,20.2,20.2
+House_01,Stuck Sensor,14439,internal_temperature,20.2,20.2
+House_03,Artificial Missing Value,15790,A,0.4608,NaN
+House_03,Artificial Missing Value,33662,A,0.5303666666666667,NaN
+House_03,Artificial Missing Value,40013,A,0.5639777777777778,NaN
+House_03,Artificial Missing Value,1739,A,0.6001,NaN
+House_03,Artificial Missing Value,37341,A,0.5109111111111111,NaN
+House_03,Artificial Missing Value,15165,ac_1,0.2806444444444444,NaN
+House_03,Artificial Missing Value,37946,ac_1,0.1570111111111111,NaN
+House_03,Artificial Missing Value,29628,ac_1,0.10954444444444444,NaN
+House_03,Artificial Missing Value,16580,ac_1,0.13061111111111112,NaN
+House_03,Artificial Missing Value,31574,ac_1,0.17203333333333334,NaN
+House_03,Outlier,39182,A,0.8140555555555555,100
+House_03,Outlier,18774,P_agg,67.67232222222222,15000
+House_03,Outlier,8891,boiler,0.0,8000
+House_03,Duplicate Record,10463,All columns,Original row,Duplicated row
+House_03,Duplicate Record,27696,All columns,Original row,Duplicated row
+House_03,Stuck Sensor,22298,internal_humidity,79.0,79.0
+House_03,Stuck Sensor,22299,internal_humidity,79.0,79.0
+House_03,Stuck Sensor,22300,internal_humidity,79.0,79.0
+House_03,Stuck Sensor,22301,internal_humidity,78.0,79.0
+House_03,Stuck Sensor,22302,internal_humidity,78.0,79.0
+House_03,Stuck Sensor,22303,internal_humidity,78.0,79.0
+House_04,Artificial Missing Value,18284,V,225.89004444444444,NaN
+House_04,Artificial Missing Value,10257,V,226.34652222222223,NaN
+House_04,Artificial Missing Value,14178,V,226.9753888888889,NaN
+House_04,Artificial Missing Value,22179,V,230.8394222222222,NaN
+House_04,Artificial Missing Value,6766,V,230.26360833333334,NaN
+House_04,Artificial Missing Value,6146,A,11.051652777777777,NaN
+House_04,Artificial Missing Value,25171,A,0.8176333333333333,NaN
+House_04,Artificial Missing Value,6406,A,1.0152972222222223,NaN
+House_04,Artificial Missing Value,23799,A,1.0847222222222221,NaN
+House_04,Artificial Missing Value,22661,A,0.7915722222222222,NaN
+House_04,Outlier,17412,V,226.38910555555555,100
+House_04,Outlier,2915,P_agg,181.3881972222222,15000
+House_04,Outlier,30738,ac_2,0.0,5000
+House_04,Duplicate Record,8180,All columns,Original row,Duplicated row
+House_04,Duplicate Record,24807,All columns,Original row,Duplicated row
+House_04,Stuck Sensor,5180,external_temperature,15.7,15.7
+House_04,Stuck Sensor,5181,external_temperature,15.5,15.7
+House_04,Stuck Sensor,5182,external_temperature,15.3,15.7
+House_04,Stuck Sensor,5183,external_temperature,15.1,15.7
+House_04,Stuck Sensor,5184,external_temperature,14.9,15.7
+House_04,Stuck Sensor,5185,external_temperature,14.7,15.7
