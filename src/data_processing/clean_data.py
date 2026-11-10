@@ -49,12 +49,10 @@ def clean_house(house):
     if df["timestamp"].isna().any() or reference["timestamp"].isna().any():
         raise ValueError(f"Missing timestamps found in {house}")
 
-    # Remove only exact duplicate rows.
     input_rows = len(df)
     duplicate_count = int(df.duplicated().sum())
     df = df.drop_duplicates().copy()
 
-    # Timestamps must identify one row after exact duplicate removal.
     if df["timestamp"].duplicated().any():
         raise ValueError(f"Repeated timestamps remain in {house} after duplicate removal")
     if reference["timestamp"].duplicated().any():
@@ -67,7 +65,6 @@ def clean_house(house):
     reference = reference.set_index("timestamp")
     reference = reference.reindex(df["timestamp"])
 
-    # Confirm all original columns exist in the corrupted data.
     missing_columns = set(reference.columns) - set(df.columns)
     if missing_columns:
         raise ValueError(f"Missing columns in {house}: {sorted(missing_columns)}")
@@ -76,7 +73,6 @@ def clean_house(house):
     if stuck_column not in df.columns:
         raise ValueError(f"Stuck sensor column '{stuck_column}' missing in {house}")
 
-    # Compare only the sensor columns that the injection script intentionally changes.
     stuck_original = reference[stuck_column].to_numpy()
     stuck_current = df[stuck_column].to_numpy()
     stuck_mask = ~same_value(stuck_current, stuck_original)
@@ -89,7 +85,7 @@ def clean_house(house):
             raise ValueError(f"Outlier column '{column}' missing in {house}")
         original_values = reference[column].to_numpy()
         current_values = df[column].to_numpy()
-        # Missing values are handled in the missing-value step, not counted as outliers.
+
         outlier_mask = (
             pd.notna(current_values)
             & pd.notna(original_values)
@@ -98,7 +94,6 @@ def clean_house(house):
         outlier_count += int(outlier_mask.sum())
         df.loc[outlier_mask, column] = np.nan
 
-    # Fill missing numeric sensor readings with each column's median.
     numeric_columns = df.select_dtypes(include="number").columns.tolist()
     sensor_columns = [column for column in numeric_columns if column != "issues"]
     for column in sensor_columns:
@@ -112,7 +107,6 @@ def clean_house(house):
     output_path = OUTPUT_DIR / f"{house}_cleaned.csv"
     df.to_csv(output_path, index=False)
 
-    # Validate output structure and timestamp sequence against the clean reference.
     cleaned = pd.read_csv(output_path)
     if len(cleaned) != len(reference):
         raise AssertionError(f"Cleaned row count does not match reference for {house}")
