@@ -1,3 +1,16 @@
+
+"""
+Data Cleaning Module for Smart Energy Analytics.
+
+Provides utilities to detect and clean synthetic data quality issues
+in smart meter datasets, including duplicate records, stuck sensor
+readings, outliers, and missing numeric sensor values.
+
+Uses the original processed datasets as reference data to identify
+modified sensor readings and saves the cleaned datasets to the output
+directory.
+"""
+
 from pathlib import Path
 import pandas as pd
 import numpy as np
@@ -22,13 +35,60 @@ OUTLIER_COLUMNS = {
 
 
 def same_value(left, right):
-    """Compare numeric values while treating NaN as equal to NaN."""
+    """
+    Compare two numeric values while treating NaN values as equal.
+
+    Parameters
+    ----------
+    left : scalar or array-like
+        First value or collection of values to compare.
+    right : scalar or array-like
+        Second value or collection of values to compare.
+
+    Returns
+    -------
+    bool or numpy.ndarray
+        True for values that are approximately equal, including pairs
+        of NaN values. The result may be an array for array-like inputs.
+    """
     left = pd.to_numeric(left, errors="coerce")
     right = pd.to_numeric(right, errors="coerce")
     return np.isclose(left, right, rtol=1e-9, atol=1e-8, equal_nan=True)
 
 
 def clean_house(house):
+    """
+    Clean and validate the dataset for one house.
+
+    Reads the dataset containing injected issues and the corresponding
+    original dataset. Removes duplicate records, detects modified stuck
+    sensor readings and outliers using the original data as a reference,
+    fills missing numeric sensor values with their column medians, and
+    saves the cleaned dataset.
+
+    Parameters
+    ----------
+    house : str
+        House identifier. Must be one of the values in HOUSES.
+
+    Returns
+    -------
+    dict
+        Summary containing the house identifier, row counts, number of
+        duplicates removed, detected stuck readings, detected outliers,
+        remaining missing numeric sensor values, and output file path.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the input or original reference file does not exist.
+    ValueError
+        If required columns or timestamps are invalid, timestamps are
+        duplicated or unmatched, or expected sensor columns are missing.
+    AssertionError
+        If the saved dataset fails the row count, column, or timestamp
+        validation checks.
+    """
     input_path = INPUT_DIR / f"{house}_with_issues.csv"
     reference_path = REFERENCE_DIR / f"{house}.csv"
 
@@ -128,6 +188,22 @@ def clean_house(house):
 
 
 def main():
+    """
+    Clean all configured house datasets and print processing summaries.
+
+    Calls clean_house() for each house in HOUSES and displays the
+    number of rows, detected issues, remaining missing numeric values,
+    and the location of each saved output file.
+
+    Raises
+    ------
+    FileNotFoundError
+        If a required input or reference dataset is missing.
+    ValueError
+        If a dataset fails the cleaning validation checks.
+    AssertionError
+        If a saved cleaned dataset fails output validation.
+    """
     results = []
     for house in HOUSES:
         result = clean_house(house)
