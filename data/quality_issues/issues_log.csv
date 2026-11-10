@@ -1,64 +1,58 @@
-house,issue_type,row,column,original_value,new_value
-House_01,Artificial Missing Value,42008,V,234.84067777777778,NaN
-House_01,Artificial Missing Value,7353,V,235.13745555555553,NaN
-House_01,Artificial Missing Value,1669,V,231.82833333333332,NaN
-House_01,Artificial Missing Value,18093,V,233.1134111111111,NaN
-House_01,Artificial Missing Value,16118,V,238.57042222222222,NaN
-House_01,Artificial Missing Value,14698,A,0.26168888888888886,NaN
-House_01,Artificial Missing Value,9201,A,0.2693888888888889,NaN
-House_01,Artificial Missing Value,6774,A,0.4414222222222222,NaN
-House_01,Artificial Missing Value,35845,A,4.56978888888889,NaN
-House_01,Artificial Missing Value,5754,A,0.6578444444444445,NaN
-House_01,Outlier,38805,V,231.75573333333332,300
-House_01,Outlier,27731,P_agg,49.78887777777778,15000
-House_01,Outlier,2112,ac_1,2.9575222222222224,6000
-House_01,Duplicate Record,1952,All columns,Original row,Duplicated row
-House_01,Duplicate Record,6140,All columns,Original row,Duplicated row
-House_01,Stuck Sensor,14434,internal_temperature,20.2,20.2
-House_01,Stuck Sensor,14435,internal_temperature,20.2,20.2
-House_01,Stuck Sensor,14436,internal_temperature,20.2,20.2
-House_01,Stuck Sensor,14437,internal_temperature,20.2,20.2
-House_01,Stuck Sensor,14438,internal_temperature,20.2,20.2
-House_01,Stuck Sensor,14439,internal_temperature,20.2,20.2
-House_03,Artificial Missing Value,15790,A,0.4608,NaN
-House_03,Artificial Missing Value,33662,A,0.5303666666666667,NaN
-House_03,Artificial Missing Value,40013,A,0.5639777777777778,NaN
-House_03,Artificial Missing Value,1739,A,0.6001,NaN
-House_03,Artificial Missing Value,37341,A,0.5109111111111111,NaN
-House_03,Artificial Missing Value,15165,ac_1,0.2806444444444444,NaN
-House_03,Artificial Missing Value,37946,ac_1,0.1570111111111111,NaN
-House_03,Artificial Missing Value,29628,ac_1,0.10954444444444444,NaN
-House_03,Artificial Missing Value,16580,ac_1,0.13061111111111112,NaN
-House_03,Artificial Missing Value,31574,ac_1,0.17203333333333334,NaN
-House_03,Outlier,39182,A,0.8140555555555555,100
-House_03,Outlier,18774,P_agg,67.67232222222222,15000
-House_03,Outlier,8891,boiler,0.0,8000
-House_03,Duplicate Record,10463,All columns,Original row,Duplicated row
-House_03,Duplicate Record,27696,All columns,Original row,Duplicated row
-House_03,Stuck Sensor,22298,internal_humidity,79.0,79.0
-House_03,Stuck Sensor,22299,internal_humidity,79.0,79.0
-House_03,Stuck Sensor,22300,internal_humidity,79.0,79.0
-House_03,Stuck Sensor,22301,internal_humidity,78.0,79.0
-House_03,Stuck Sensor,22302,internal_humidity,78.0,79.0
-House_03,Stuck Sensor,22303,internal_humidity,78.0,79.0
-House_04,Artificial Missing Value,18284,V,225.89004444444444,NaN
-House_04,Artificial Missing Value,10257,V,226.34652222222223,NaN
-House_04,Artificial Missing Value,14178,V,226.9753888888889,NaN
-House_04,Artificial Missing Value,22179,V,230.8394222222222,NaN
-House_04,Artificial Missing Value,6766,V,230.26360833333334,NaN
-House_04,Artificial Missing Value,6146,A,11.051652777777777,NaN
-House_04,Artificial Missing Value,25171,A,0.8176333333333333,NaN
-House_04,Artificial Missing Value,6406,A,1.0152972222222223,NaN
-House_04,Artificial Missing Value,23799,A,1.0847222222222221,NaN
-House_04,Artificial Missing Value,22661,A,0.7915722222222222,NaN
-House_04,Outlier,17412,V,226.38910555555555,100
-House_04,Outlier,2915,P_agg,181.3881972222222,15000
-House_04,Outlier,30738,ac_2,0.0,5000
-House_04,Duplicate Record,8180,All columns,Original row,Duplicated row
-House_04,Duplicate Record,24807,All columns,Original row,Duplicated row
-House_04,Stuck Sensor,5180,external_temperature,15.7,15.7
-House_04,Stuck Sensor,5181,external_temperature,15.5,15.7
-House_04,Stuck Sensor,5182,external_temperature,15.3,15.7
-House_04,Stuck Sensor,5183,external_temperature,15.1,15.7
-House_04,Stuck Sensor,5184,external_temperature,14.9,15.7
-House_04,Stuck Sensor,5185,external_temperature,14.7,15.7
+house,issue_type,source_row,timestamp,column,original_value,injected_value,details
+House_01,additional_missing_value,42008,2023-09-26 14:00:00,V,234.84067777777778,NaN,Injected missing value into a previously valid cell.
+House_01,additional_missing_value,7353,2022-09-30 14:15:00,V,235.13745555555553,NaN,Injected missing value into a previously valid cell.
+House_01,additional_missing_value,1669,2022-08-01 09:15:00,V,231.82833333333332,NaN,Injected missing value into a previously valid cell.
+House_01,additional_missing_value,18093,2023-01-20 11:15:00,V,233.1134111111111,NaN,Injected missing value into a previously valid cell.
+House_01,additional_missing_value,16118,2022-12-30 21:30:00,V,238.57042222222222,NaN,Injected missing value into a previously valid cell.
+House_01,additional_missing_value,14698,2022-12-16 02:30:00,A,0.26168888888888886,NaN,Injected missing value into a previously valid cell.
+House_01,additional_missing_value,9201,2022-10-19 20:15:00,A,0.2693888888888889,NaN,Injected missing value into a previously valid cell.
+House_01,additional_missing_value,6774,2022-09-24 13:30:00,A,0.4414222222222222,NaN,Injected missing value into a previously valid cell.
+House_01,additional_missing_value,35845,2023-07-24 09:15:00,A,4.56978888888889,NaN,Injected missing value into a previously valid cell.
+House_01,additional_missing_value,5754,2022-09-13 22:30:00,A,0.6578444444444445,NaN,Injected missing value into a previously valid cell.
+House_01,outlier,38805,2023-08-24 05:15:00,V,231.75573333333332,300.0,Injected synthetic extreme sensor value.
+House_01,outlier,27731,2023-04-30 20:45:00,P_agg,49.78887777777778,15000.0,Injected synthetic extreme sensor value.
+House_01,outlier,2112,2022-08-06 00:00:00,ac_1,2.9575222222222224,6000.0,Injected synthetic extreme sensor value.
+House_01,stuck_sensor,1636,2022-08-01 01:00:00,internal_temperature,31.5,31.6,Changed reading to create a six-row stuck event (start row 1632).
+House_01,stuck_sensor,1637,2022-08-01 01:15:00,internal_temperature,31.5,31.6,Changed reading to create a six-row stuck event (start row 1632).
+House_01,duplicate_record,6140,2022-09-17 23:00:00,ALL_COLUMNS,original row,exact duplicate row,Appended exact duplicate record.
+House_01,duplicate_record,14328,2022-12-12 06:00:00,ALL_COLUMNS,original row,exact duplicate row,Appended exact duplicate record.
+House_03,additional_missing_value,15790,2022-12-23 00:15:00,A,0.4608,NaN,Injected missing value into a previously valid cell.
+House_03,additional_missing_value,33662,2023-06-27 04:15:00,A,0.5303666666666667,NaN,Injected missing value into a previously valid cell.
+House_03,additional_missing_value,40013,2023-09-01 08:00:00,A,0.5639777777777778,NaN,Injected missing value into a previously valid cell.
+House_03,additional_missing_value,1739,2022-07-29 15:30:00,A,0.6001,NaN,Injected missing value into a previously valid cell.
+House_03,additional_missing_value,37341,2023-08-04 12:00:00,A,0.5109111111111111,NaN,Injected missing value into a previously valid cell.
+House_03,additional_missing_value,15165,2022-12-16 12:00:00,ac_1,0.2806444444444444,NaN,Injected missing value into a previously valid cell.
+House_03,additional_missing_value,37946,2023-08-10 19:15:00,ac_1,0.1570111111111111,NaN,Injected missing value into a previously valid cell.
+House_03,additional_missing_value,29628,2023-05-16 03:45:00,ac_1,0.10954444444444444,NaN,Injected missing value into a previously valid cell.
+House_03,additional_missing_value,16580,2022-12-31 05:45:00,ac_1,0.13061111111111112,NaN,Injected missing value into a previously valid cell.
+House_03,additional_missing_value,31574,2023-06-05 10:15:00,ac_1,0.17203333333333334,NaN,Injected missing value into a previously valid cell.
+House_03,outlier,39182,2023-08-23 16:15:00,A,0.8140555555555555,100.0,Injected synthetic extreme sensor value.
+House_03,outlier,18774,2023-01-23 02:15:00,P_agg,67.67232222222222,15000.0,Injected synthetic extreme sensor value.
+House_03,outlier,8891,2022-10-12 03:30:00,boiler,0.0,8000.0,Injected synthetic extreme sensor value.
+House_03,stuck_sensor,34984,2023-07-10 22:45:00,internal_humidity,38.0,39.0,Changed reading to create a six-row stuck event (start row 34983).
+House_03,stuck_sensor,34985,2023-07-10 23:00:00,internal_humidity,38.0,39.0,Changed reading to create a six-row stuck event (start row 34983).
+House_03,stuck_sensor,34986,2023-07-10 23:15:00,internal_humidity,38.0,39.0,Changed reading to create a six-row stuck event (start row 34983).
+House_03,stuck_sensor,34987,2023-07-10 23:30:00,internal_humidity,37.0,39.0,Changed reading to create a six-row stuck event (start row 34983).
+House_03,stuck_sensor,34988,2023-07-10 23:45:00,internal_humidity,37.0,39.0,Changed reading to create a six-row stuck event (start row 34983).
+House_03,duplicate_record,10463,2022-10-28 12:30:00,ALL_COLUMNS,original row,exact duplicate row,Appended exact duplicate record.
+House_03,duplicate_record,27696,2023-04-26 00:45:00,ALL_COLUMNS,original row,exact duplicate row,Appended exact duplicate record.
+House_04,additional_missing_value,22418,2023-06-01 09:30:00,V,223.87985555555557,NaN,Injected missing value into a previously valid cell.
+House_04,additional_missing_value,18284,2023-04-19 05:15:00,V,225.89004444444444,NaN,Injected missing value into a previously valid cell.
+House_04,additional_missing_value,10257,2023-01-25 12:15:00,V,226.34652222222223,NaN,Injected missing value into a previously valid cell.
+House_04,additional_missing_value,14178,2023-03-07 10:00:00,V,226.9753888888889,NaN,Injected missing value into a previously valid cell.
+House_04,additional_missing_value,22179,2023-05-29 21:00:00,V,230.8394222222222,NaN,Injected missing value into a previously valid cell.
+House_04,additional_missing_value,6766,2022-12-20 02:45:00,A,0.5922638888888888,NaN,Injected missing value into a previously valid cell.
+House_04,additional_missing_value,6146,2022-12-13 15:45:00,A,11.051652777777777,NaN,Injected missing value into a previously valid cell.
+House_04,additional_missing_value,25171,2023-06-30 01:45:00,A,0.8176333333333333,NaN,Injected missing value into a previously valid cell.
+House_04,additional_missing_value,6406,2022-12-16 08:45:00,A,1.0152972222222223,NaN,Injected missing value into a previously valid cell.
+House_04,additional_missing_value,23799,2023-06-15 18:45:00,A,1.0847222222222221,NaN,Injected missing value into a previously valid cell.
+House_04,outlier,22666,2023-06-03 23:30:00,V,229.90810833333333,100.0,Injected synthetic extreme sensor value.
+House_04,outlier,17409,2023-04-10 02:30:00,P_agg,120.34326666666666,15000.0,Injected synthetic extreme sensor value.
+House_04,outlier,3180,2022-11-12 17:30:00,ac_2,0.0,5000.0,Injected synthetic extreme sensor value.
+House_04,stuck_sensor,25895,2023-07-07 15:30:00,external_temperature,33.55,33.825,Changed reading to create a six-row stuck event (start row 25894).
+House_04,stuck_sensor,25896,2023-07-07 15:45:00,external_temperature,33.275,33.825,Changed reading to create a six-row stuck event (start row 25894).
+House_04,stuck_sensor,25897,2023-07-07 16:00:00,external_temperature,33.0,33.825,Changed reading to create a six-row stuck event (start row 25894).
+House_04,stuck_sensor,25898,2023-07-07 16:15:00,external_temperature,32.675,33.825,Changed reading to create a six-row stuck event (start row 25894).
+House_04,stuck_sensor,25899,2023-07-07 16:30:00,external_temperature,32.35,33.825,Changed reading to create a six-row stuck event (start row 25894).
+House_04,duplicate_record,30108,2023-08-20 13:30:00,ALL_COLUMNS,original row,exact duplicate row,Appended exact duplicate record.
+House_04,duplicate_record,8180,2023-01-03 21:00:00,ALL_COLUMNS,original row,exact duplicate row,Appended exact duplicate record.
