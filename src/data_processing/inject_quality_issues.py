@@ -1,16 +1,4 @@
 
-"""
-Data Quality Issues Injection Module for Smart Energy Analytics.
-
-Provides utilities to inject synthetic data quality issues into
-smart meter datasets, including additional missing values, outliers,
-stuck sensor readings, and duplicate records.
-
-Uses the original processed datasets as input, validates their data
-types, and saves the corrupted datasets and an issue log to the
-output directory. A fixed random seed makes the injection reproducible.
-"""
-
 from pathlib import Path
 import random
 
@@ -242,5 +230,4 @@ def main():
     print(f"Total logged injected issues: {len(all_logs)}")
 
 
-if __name__ == "__main__":
-    main()
+

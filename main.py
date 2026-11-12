@@ -2,11 +2,13 @@
 Smart Energy Analytics — Pipeline Entry Point.
 
 Orchestrates ingestion, month-by-month temporal resampling,
-environmental dataset alignment, and per-house export.
+environmental dataset alignment, quality issue injection,
+and data cleaning. Run this file to execute the full pipeline.
 """
 from pathlib import Path
 import pandas as pd
 from src.data_processing import data_ingestion as ingestion, data_transformation as transformation
+from src.data_processing import inject_quality_issues, clean_data
 
 root_dir = Path("C:/Users/kareem/OneDrive/Desktop/target_houses")
 output_folder = Path("data/processed")
@@ -57,5 +59,12 @@ def run_pipeline() -> None:
         print(f"Processing {house.name} completed")
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """Run the full Smart Energy Analytics pipeline end to end."""
     run_pipeline()
+    inject_quality_issues.main()
+    clean_data.main()
+
+
+if __name__ == "__main__":
+    main()

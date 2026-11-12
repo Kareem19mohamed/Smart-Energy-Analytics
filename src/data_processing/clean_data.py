@@ -292,5 +292,4 @@ def main():
     print("\nAll houses cleaned and validated successfully.")
 
 
-if __name__ == "__main__":
-    main()
+
