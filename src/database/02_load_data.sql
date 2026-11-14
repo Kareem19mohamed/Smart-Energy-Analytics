@@ -29,9 +29,10 @@ PRINT 'Staging tables cleared.';
 GO
 
 -- 3. Bulk Insert CSV Files
+-- Note: Update the file path to match your local repository data directory
 PRINT 'Loading House_01_cleaned.csv...';
 BULK INSERT staging.House_01_Raw
-FROM 'C:\بروجيكت سيكول\House_01_cleaned.csv'
+FROM 'C:\Smart-Energy-Analytics\data\House_01_cleaned.csv'
 WITH (
     FIRSTROW = 2,
     FIELDTERMINATOR = ',',
@@ -42,7 +43,7 @@ PRINT 'House_01 loaded: ' + CAST(@@ROWCOUNT AS VARCHAR) + ' rows.';
 
 PRINT 'Loading House_03_cleaned.csv...';
 BULK INSERT staging.House_03_Raw
-FROM 'C:\بروجيكت سيكول\House_03_cleaned.csv'
+FROM 'C:\Smart-Energy-Analytics\data\House_03_cleaned.csv'
 WITH (
     FIRSTROW = 2,
     FIELDTERMINATOR = ',',
@@ -53,7 +54,7 @@ PRINT 'House_03 loaded: ' + CAST(@@ROWCOUNT AS VARCHAR) + ' rows.';
 
 PRINT 'Loading House_04_cleaned.csv...';
 BULK INSERT staging.House_04_Raw
-FROM 'C:\بروجيكت سيكول\House_04_cleaned.csv'
+FROM 'C:\Smart-Energy-Analytics\data\House_04_cleaned.csv'
 WITH (
     FIRSTROW = 2,
     FIELDTERMINATOR = ',',
