@@ -1,35 +1,18 @@
--- ============================================================================
--- Project: Electricity Consumption Analysis & Prediction
--- Script: 02_electricity_analysis_and_validation.sql
--- Database: ElectricityDB
--- Stages Covered: Stage 6 (SQL Analysis) & Stage 7 (Data Validation)
--- ============================================================================
-
 USE ElectricityDB;
 GO
 
-PRINT '================================================================';
-PRINT '   STAGE 7: DATA VALIDATION CHECKS                             ';
-PRINT '================================================================';
-GO
-
--- ----------------------------------------------------------------------------
--- 20. التحقق من إجمالي عدد الصفوف (Total Records = 119,375)
--- ----------------------------------------------------------------------------
+-- 1. Total Record Count Validation
 SELECT 
     COUNT(*) AS Total_Records_In_DB,
     119375 AS Expected_Records,
     CASE 
-        WHEN COUNT(*) = 119375 THEN 'PASSED: Total row count matches CSV files exactly.'
-        ELSE 'FAILED: Total row count mismatch!'
+        WHEN COUNT(*) = 119375 THEN 'PASSED'
+        ELSE 'FAILED'
     END AS Validation_Status
 FROM dbo.ElectricityReadings;
 GO
 
--- ----------------------------------------------------------------------------
--- 21. التحقق من توزيع البيانات على البيوت الثلاثة
--- House_01: 42,432 | House_03: 42,861 | House_04: 34,082
--- ----------------------------------------------------------------------------
+-- 2. Household Record Distribution
 SELECT 
     household_id,
     COUNT(*) AS Actual_Count,
@@ -49,9 +32,7 @@ GROUP BY household_id
 ORDER BY household_id;
 GO
 
--- ----------------------------------------------------------------------------
--- 22. التحقق من عدم وجود تكرار (Duplicate Timestamp per House)
--- ----------------------------------------------------------------------------
+-- 3. Duplicate Timestamp Check
 WITH Duplicates AS (
     SELECT 
         household_id, 
@@ -64,15 +45,13 @@ WITH Duplicates AS (
 SELECT 
     ISNULL(COUNT(*), 0) AS Total_Duplicates,
     CASE 
-        WHEN COUNT(*) = 0 THEN 'PASSED: No duplicate records found.'
-        ELSE 'FAILED: Duplicate timestamps detected!'
+        WHEN COUNT(*) = 0 THEN 'PASSED'
+        ELSE 'FAILED'
     END AS Duplicate_Check_Status
 FROM Duplicates;
 GO
 
--- ----------------------------------------------------------------------------
--- 23. التحقق من القيم المفقودة (NULL Values Breakdown)
--- ----------------------------------------------------------------------------
+-- 4. Missing Values Check
 SELECT 
     household_id,
     COUNT(*) AS Total_Rows,
@@ -86,15 +65,7 @@ FROM dbo.ElectricityReadings
 GROUP BY household_id;
 GO
 
-
-PRINT '================================================================';
-PRINT '   STAGE 6: SQL QUERIES & DATA ANALYSIS                        ';
-PRINT '================================================================';
-GO
-
--- ----------------------------------------------------------------------------
--- 17. تحليل استهلاك كل بيت: مين متوسط استهلاكه أعلى؟
--- ----------------------------------------------------------------------------
+-- 5. Household Consumption Ranking
 SELECT 
     r.household_id,
     h.source_file,
@@ -102,7 +73,6 @@ SELECT
     ROUND(AVG(r.P_agg), 2) AS Avg_Power_Watts,
     ROUND(MAX(r.P_agg), 2) AS Max_Peak_Power_Watts,
     ROUND(MIN(r.P_agg), 2) AS Min_Base_Power_Watts,
-    -- Calculation: (Watts * 0.25 hours) / 1000 = kWh
     ROUND(SUM(r.P_agg * 0.25 / 1000.0), 2) AS Total_Energy_kWh,
     DENSE_RANK() OVER (ORDER BY AVG(r.P_agg) DESC) AS Consumption_Rank
 FROM dbo.ElectricityReadings r
@@ -111,9 +81,7 @@ GROUP BY r.household_id, h.source_file
 ORDER BY Total_Energy_kWh DESC;
 GO
 
--- ----------------------------------------------------------------------------
--- 18. اكتشاف Peak Consumption: إمتى بيحصل أعلى استهلاك في اليوم؟
--- ----------------------------------------------------------------------------
+-- 6. Peak Consumption Hours
 SELECT 
     household_id,
     DATEPART(HOUR, reading_time) AS Hour_Of_Day,
@@ -128,9 +96,7 @@ GROUP BY household_id, DATEPART(HOUR, reading_time)
 ORDER BY household_id, Hourly_Peak_Rank;
 GO
 
--- ----------------------------------------------------------------------------
--- 19. مقارنة استهلاك الأجهزة (AC, Boiler, Fridge, Washing Machine)
--- ----------------------------------------------------------------------------
+-- 7. Appliance Breakdown
 SELECT 
     household_id,
     ROUND(SUM(P_agg * 0.25 / 1000.0), 2) AS Total_kWh,

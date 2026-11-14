@@ -1,9 +1,3 @@
--- ============================================================================
--- Project: Smart Energy Analytics & Prediction
--- Script 02: Ingestion & Data Transformation Pipeline (ETL)
--- Engine: Microsoft SQL Server (T-SQL)
--- ============================================================================
-
 USE SmartEnergy_DB;
 GO
 
@@ -34,11 +28,8 @@ TRUNCATE TABLE staging.House_04_Raw;
 PRINT 'Staging tables cleared.';
 GO
 
--- 3. Bulk Insert from Cleaned CSV Files into Staging Tables
--- NOTE: Please ensure the CSV files are located in 'C:\بروجيكت سيكول\'
--- If your path differs, update the FROM path accordingly.
-
-PRINT 'Loading House_01_cleaned.csv into staging...';
+-- 3. Bulk Insert CSV Files
+PRINT 'Loading House_01_cleaned.csv...';
 BULK INSERT staging.House_01_Raw
 FROM 'C:\بروجيكت سيكول\House_01_cleaned.csv'
 WITH (
@@ -47,9 +38,9 @@ WITH (
     ROWTERMINATOR = '0x0a',
     TABLOCK
 );
-PRINT 'House_01 loaded to staging: ' + CAST(@@ROWCOUNT AS VARCHAR) + ' rows.';
+PRINT 'House_01 loaded: ' + CAST(@@ROWCOUNT AS VARCHAR) + ' rows.';
 
-PRINT 'Loading House_03_cleaned.csv into staging...';
+PRINT 'Loading House_03_cleaned.csv...';
 BULK INSERT staging.House_03_Raw
 FROM 'C:\بروجيكت سيكول\House_03_cleaned.csv'
 WITH (
@@ -58,9 +49,9 @@ WITH (
     ROWTERMINATOR = '0x0a',
     TABLOCK
 );
-PRINT 'House_03 loaded to staging: ' + CAST(@@ROWCOUNT AS VARCHAR) + ' rows.';
+PRINT 'House_03 loaded: ' + CAST(@@ROWCOUNT AS VARCHAR) + ' rows.';
 
-PRINT 'Loading House_04_cleaned.csv into staging...';
+PRINT 'Loading House_04_cleaned.csv...';
 BULK INSERT staging.House_04_Raw
 FROM 'C:\بروجيكت سيكول\House_04_cleaned.csv'
 WITH (
@@ -69,19 +60,15 @@ WITH (
     ROWTERMINATOR = '0x0a',
     TABLOCK
 );
-PRINT 'House_04 loaded to staging: ' + CAST(@@ROWCOUNT AS VARCHAR) + ' rows.';
+PRINT 'House_04 loaded: ' + CAST(@@ROWCOUNT AS VARCHAR) + ' rows.';
 GO
 
--- ============================================================================
--- 4. Transform & Load from Staging to Fact_Energy_Readings
--- ============================================================================
-
--- Clear fact table before reload to prevent duplicate runs
+-- 4. Transform & Load into Fact Table
 TRUNCATE TABLE dwh.Fact_Energy_Readings;
 PRINT 'Fact table truncated for fresh load.';
 GO
 
--- Load House 01 (Handles the two temperature columns)
+-- Load House 01
 INSERT INTO dwh.Fact_Energy_Readings (
     House_ID,
     Reading_Time,
@@ -112,7 +99,6 @@ SELECT
     TRY_CAST(washing_machine AS FLOAT) AS Washing_Machine,
     TRY_CAST(internal_temperature AS FLOAT) AS Internal_Temperature,
     TRY_CAST(internal_humidity AS FLOAT) AS Internal_Humidity,
-    -- Prioritize external_temparature (actual sensor), fallback to external_temperature
     COALESCE(TRY_CAST(external_temparature AS FLOAT), TRY_CAST(external_temperature AS FLOAT)) AS External_Temperature,
     TRY_CAST(external_humidity AS FLOAT) AS External_Humidity,
     TRY_CAST(issues AS FLOAT) AS Issues_Score
@@ -202,7 +188,7 @@ WHERE TRY_CAST(timestamp AS DATETIME2(0)) IS NOT NULL;
 PRINT 'Loaded House_04 into Fact table: ' + CAST(@@ROWCOUNT AS VARCHAR) + ' rows.';
 GO
 
--- Final Total Verification
+-- Verification
 SELECT 
     House_ID, 
     COUNT(*) AS Total_Readings,
