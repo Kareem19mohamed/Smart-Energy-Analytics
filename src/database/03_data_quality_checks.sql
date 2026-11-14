@@ -1,7 +1,6 @@
 USE SmartEnergy_DB;
 GO
 
--- 1. Record Count per House
 SELECT 
     House_ID,
     COUNT(*) AS Total_Records,
@@ -15,7 +14,6 @@ FROM dwh.Fact_Energy_Readings
 GROUP BY House_ID;
 GO
 
--- 2. Duplicate Timestamps Check
 WITH DuplicateCheck AS (
     SELECT 
         House_ID,
@@ -34,7 +32,6 @@ SELECT
 FROM DuplicateCheck;
 GO
 
--- 3. Null Values in Critical Fields
 SELECT 
     House_ID,
     SUM(CASE WHEN Reading_Time IS NULL THEN 1 ELSE 0 END) AS Null_Timestamps,
@@ -46,7 +43,6 @@ FROM dwh.Fact_Energy_Readings
 GROUP BY House_ID;
 GO
 
--- 4. Negative Power Values Check
 SELECT 
     House_ID,
     SUM(CASE WHEN Aggregate_Power < 0 THEN 1 ELSE 0 END) AS Negative_Agg_Power,
@@ -59,7 +55,6 @@ FROM dwh.Fact_Energy_Readings
 GROUP BY House_ID;
 GO
 
--- 5. Range and Boundary Checks
 SELECT 
     House_ID,
     SUM(CASE WHEN Voltage < 180 OR Voltage > 260 THEN 1 ELSE 0 END) AS Abnormal_Voltage_Count,
@@ -69,7 +64,6 @@ FROM dwh.Fact_Energy_Readings
 GROUP BY House_ID;
 GO
 
--- 6. Energy Balance Check (Aggregate Power vs Submetered Appliances)
 SELECT 
     House_ID,
     COUNT(*) AS Total_Readings,

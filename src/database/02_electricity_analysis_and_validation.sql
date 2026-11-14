@@ -1,7 +1,6 @@
 USE ElectricityDB;
 GO
 
--- 1. Total Record Count Validation
 SELECT 
     COUNT(*) AS Total_Records_In_DB,
     119375 AS Expected_Records,
@@ -12,7 +11,6 @@ SELECT
 FROM dbo.ElectricityReadings;
 GO
 
--- 2. Household Record Distribution
 SELECT 
     household_id,
     COUNT(*) AS Actual_Count,
@@ -32,7 +30,6 @@ GROUP BY household_id
 ORDER BY household_id;
 GO
 
--- 3. Duplicate Timestamp Check
 WITH Duplicates AS (
     SELECT 
         household_id, 
@@ -51,7 +48,6 @@ SELECT
 FROM Duplicates;
 GO
 
--- 4. Missing Values Check
 SELECT 
     household_id,
     COUNT(*) AS Total_Rows,
@@ -65,7 +61,6 @@ FROM dbo.ElectricityReadings
 GROUP BY household_id;
 GO
 
--- 5. Household Consumption Ranking
 SELECT 
     r.household_id,
     h.source_file,
@@ -81,7 +76,6 @@ GROUP BY r.household_id, h.source_file
 ORDER BY Total_Energy_kWh DESC;
 GO
 
--- 6. Peak Consumption Hours
 SELECT 
     household_id,
     DATEPART(HOUR, reading_time) AS Hour_Of_Day,
@@ -96,7 +90,6 @@ GROUP BY household_id, DATEPART(HOUR, reading_time)
 ORDER BY household_id, Hourly_Peak_Rank;
 GO
 
--- 7. Appliance Breakdown
 SELECT 
     household_id,
     ROUND(SUM(P_agg * 0.25 / 1000.0), 2) AS Total_kWh,

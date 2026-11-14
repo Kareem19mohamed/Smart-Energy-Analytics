@@ -1,7 +1,6 @@
 USE SmartEnergy_DB;
 GO
 
--- 1. Total Consumption and Ranking per Household
 SELECT 
     RANK() OVER (ORDER BY SUM(f.Aggregate_Power * 0.25 / 1000.0) DESC) AS Consumption_Rank,
     f.House_ID,
@@ -17,7 +16,6 @@ GROUP BY f.House_ID, h.House_Name
 ORDER BY Total_Energy_kWh DESC;
 GO
 
--- 2. Peak Consumption Hours
 WITH HourlyBreakdown AS (
     SELECT 
         House_ID,
@@ -56,7 +54,6 @@ WHERE Peak_Rank <= 3
 ORDER BY House_ID, Peak_Rank;
 GO
 
--- 3. Submetered Appliances Breakdown
 SELECT 
     House_ID,
     Total_Consumption_kWh,
@@ -74,7 +71,6 @@ FROM dwh.vw_Appliance_Breakdown
 ORDER BY House_ID;
 GO
 
--- 4. Temperature Impact on Power Consumption
 SELECT 
     Temperature_Bracket,
     COUNT(*) AS Total_Observations,
@@ -86,7 +82,6 @@ GROUP BY Temperature_Bracket
 ORDER BY Temperature_Bracket;
 GO
 
--- 5. Weekday vs Weekend Consumption Pattern
 SELECT 
     House_ID,
     CASE WHEN DATEPART(WEEKDAY, Reading_Time) IN (1, 7) THEN 'Weekend' ELSE 'Weekday' END AS Day_Type,

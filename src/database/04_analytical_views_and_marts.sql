@@ -1,7 +1,6 @@
 USE SmartEnergy_DB;
 GO
 
--- View 1: High-Level House KPIs
 IF OBJECT_ID('dwh.vw_House_KPIs', 'V') IS NOT NULL DROP VIEW dwh.vw_House_KPIs;
 GO
 CREATE VIEW dwh.vw_House_KPIs AS
@@ -22,7 +21,6 @@ JOIN dwh.Dim_House h ON f.House_ID = h.House_ID
 GROUP BY f.House_ID, h.House_Name;
 GO
 
--- View 2: Hourly Peak Analysis
 IF OBJECT_ID('dwh.vw_Hourly_Peak_Analysis', 'V') IS NOT NULL DROP VIEW dwh.vw_Hourly_Peak_Analysis;
 GO
 CREATE VIEW dwh.vw_Hourly_Peak_Analysis AS
@@ -45,7 +43,6 @@ FROM dwh.Fact_Energy_Readings
 GROUP BY House_ID, DATEPART(HOUR, Reading_Time);
 GO
 
--- View 3: Appliance Contribution Breakdown
 IF OBJECT_ID('dwh.vw_Appliance_Breakdown', 'V') IS NOT NULL DROP VIEW dwh.vw_Appliance_Breakdown;
 GO
 CREATE VIEW dwh.vw_Appliance_Breakdown AS
@@ -76,7 +73,6 @@ SELECT
 FROM TotalEnergy;
 GO
 
--- View 4: Temperature vs Power Correlation
 IF OBJECT_ID('dwh.vw_Temperature_vs_Power', 'V') IS NOT NULL DROP VIEW dwh.vw_Temperature_vs_Power;
 GO
 CREATE VIEW dwh.vw_Temperature_vs_Power AS
@@ -108,7 +104,6 @@ GROUP BY
     END;
 GO
 
--- View 5: Machine Learning Feature Store
 IF OBJECT_ID('dwh.vw_ML_Feature_Store', 'V') IS NOT NULL DROP VIEW dwh.vw_ML_Feature_Store;
 GO
 CREATE VIEW dwh.vw_ML_Feature_Store AS

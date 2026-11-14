@@ -5,7 +5,6 @@ from sqlalchemy import create_engine, text
 def main():
     print("Starting Electricity Data Ingestion Pipeline...")
 
-    # Step 1: Read CSV files
     base_dir = os.path.dirname(os.path.abspath(__file__))
     
     files = {
@@ -22,19 +21,16 @@ def main():
     print(f"House_03: {len(df_house_03):,} rows")
     print(f"House_04: {len(df_house_04):,} rows")
 
-    # Step 2: Add household_id column
     df_house_01['household_id'] = 'House_01'
     df_house_03['household_id'] = 'House_03'
     df_house_04['household_id'] = 'House_04'
 
-    # Step 3: Handle schema drift in House_01 external temperature
     if 'external_temparature' in df_house_01.columns and 'external_temperature' in df_house_01.columns:
         df_house_01['external_temperature'] = df_house_01['external_temperature'].combine_first(df_house_01['external_temparature'])
         df_house_01.drop(columns=['external_temparature'], inplace=True)
     elif 'external_temparature' in df_house_01.columns:
         df_house_01.rename(columns={'external_temparature': 'external_temperature'}, inplace=True)
 
-    # Step 4: Concatenate datasets
     df_combined = pd.concat([df_house_01, df_house_03, df_house_04], ignore_index=True)
 
     if 'timestamp' in df_combined.columns:
@@ -54,7 +50,6 @@ def main():
     ]
     df_combined = df_combined[[col for col in expected_columns if col in df_combined.columns]]
 
-    # Step 5: Database Connection
     connection_string = (
         "mssql+pyodbc://localhost/ElectricityDB?"
         "driver=ODBC+Driver+17+for+SQL+Server&"
@@ -73,7 +68,6 @@ def main():
         )
         engine = create_engine(connection_string, fast_executemany=True)
 
-    # Step 6: Populate Households Dimension Table
     df_households = pd.DataFrame([
         {'household_id': 'House_01', 'source_file': 'House_01.csv', 'description': 'Smart Residence 01'},
         {'household_id': 'House_03', 'source_file': 'House_03.csv', 'description': 'Smart Residence 03'},
@@ -85,7 +79,6 @@ def main():
         conn.execute(text("DELETE FROM dbo.Households;"))
         df_households.to_sql(name='Households', con=conn, if_exists='append', index=False)
 
-    # Step 7: Batch Load into ElectricityReadings
     print("Loading readings into ElectricityReadings table...")
     with engine.begin() as conn:
         df_combined.to_sql(

@@ -1,7 +1,6 @@
 USE SmartEnergy_DB;
 GO
 
--- 1. Populate Dimension Table: Dim_House
 MERGE INTO dwh.Dim_House AS Target
 USING (VALUES 
     ('House_01', 'House 01 - Smart Residence', 'Apartment with 2 ACs, Fridge, Boiler, Washing Machine', 'Athens', 'Greece', 5),
@@ -17,20 +16,13 @@ WHEN MATCHED THEN
 WHEN NOT MATCHED THEN
     INSERT (House_ID, House_Name, Description, City, Country, Monitored_Appliances)
     VALUES (Source.House_ID, Source.House_Name, Source.Description, Source.City, Source.Country, Source.Monitored_Appliances);
-
-PRINT 'Dimension [dwh.Dim_House] populated successfully.';
 GO
 
--- 2. Clear Previous Staging Data
 TRUNCATE TABLE staging.House_01_Raw;
 TRUNCATE TABLE staging.House_03_Raw;
 TRUNCATE TABLE staging.House_04_Raw;
-PRINT 'Staging tables cleared.';
 GO
 
--- 3. Bulk Insert CSV Files
--- Note: Update the file path to match your local repository data directory
-PRINT 'Loading House_01_cleaned.csv...';
 BULK INSERT staging.House_01_Raw
 FROM 'C:\Smart-Energy-Analytics\data\House_01_cleaned.csv'
 WITH (
@@ -39,9 +31,7 @@ WITH (
     ROWTERMINATOR = '0x0a',
     TABLOCK
 );
-PRINT 'House_01 loaded: ' + CAST(@@ROWCOUNT AS VARCHAR) + ' rows.';
 
-PRINT 'Loading House_03_cleaned.csv...';
 BULK INSERT staging.House_03_Raw
 FROM 'C:\Smart-Energy-Analytics\data\House_03_cleaned.csv'
 WITH (
@@ -50,9 +40,7 @@ WITH (
     ROWTERMINATOR = '0x0a',
     TABLOCK
 );
-PRINT 'House_03 loaded: ' + CAST(@@ROWCOUNT AS VARCHAR) + ' rows.';
 
-PRINT 'Loading House_04_cleaned.csv...';
 BULK INSERT staging.House_04_Raw
 FROM 'C:\Smart-Energy-Analytics\data\House_04_cleaned.csv'
 WITH (
@@ -61,15 +49,11 @@ WITH (
     ROWTERMINATOR = '0x0a',
     TABLOCK
 );
-PRINT 'House_04 loaded: ' + CAST(@@ROWCOUNT AS VARCHAR) + ' rows.';
 GO
 
--- 4. Transform & Load into Fact Table
 TRUNCATE TABLE dwh.Fact_Energy_Readings;
-PRINT 'Fact table truncated for fresh load.';
 GO
 
--- Load House 01
 INSERT INTO dwh.Fact_Energy_Readings (
     House_ID,
     Reading_Time,
@@ -105,11 +89,8 @@ SELECT
     TRY_CAST(issues AS FLOAT) AS Issues_Score
 FROM staging.House_01_Raw
 WHERE TRY_CAST(timestamp AS DATETIME2(0)) IS NOT NULL;
-
-PRINT 'Loaded House_01 into Fact table: ' + CAST(@@ROWCOUNT AS VARCHAR) + ' rows.';
 GO
 
--- Load House 03
 INSERT INTO dwh.Fact_Energy_Readings (
     House_ID,
     Reading_Time,
@@ -145,11 +126,8 @@ SELECT
     TRY_CAST(issues AS FLOAT) AS Issues_Score
 FROM staging.House_03_Raw
 WHERE TRY_CAST(timestamp AS DATETIME2(0)) IS NOT NULL;
-
-PRINT 'Loaded House_03 into Fact table: ' + CAST(@@ROWCOUNT AS VARCHAR) + ' rows.';
 GO
 
--- Load House 04
 INSERT INTO dwh.Fact_Energy_Readings (
     House_ID,
     Reading_Time,
@@ -185,11 +163,8 @@ SELECT
     TRY_CAST(issues AS FLOAT) AS Issues_Score
 FROM staging.House_04_Raw
 WHERE TRY_CAST(timestamp AS DATETIME2(0)) IS NOT NULL;
-
-PRINT 'Loaded House_04 into Fact table: ' + CAST(@@ROWCOUNT AS VARCHAR) + ' rows.';
 GO
 
--- Verification
 SELECT 
     House_ID, 
     COUNT(*) AS Total_Readings,
