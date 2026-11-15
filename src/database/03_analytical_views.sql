@@ -1,9 +1,7 @@
 USE ElectricityDB;
 GO
 
-IF OBJECT_ID('dbo.vw_Household_KPIs', 'V') IS NOT NULL DROP VIEW dbo.vw_Household_KPIs;
-GO
-CREATE VIEW dbo.vw_Household_KPIs AS
+CREATE OR ALTER VIEW dbo.vw_Household_KPIs AS
 SELECT 
     r.household_id,
     h.source_file,
@@ -21,79 +19,24 @@ JOIN dbo.Households h ON r.household_id = h.household_id
 GROUP BY r.household_id, h.source_file;
 GO
 
-IF OBJECT_ID('dbo.vw_ML_Feature_Store', 'V') IS NOT NULL DROP VIEW dbo.vw_ML_Feature_Store;
-GO
-CREATE VIEW dbo.vw_ML_Feature_Store AS
-WITH OrderedReadings AS (
-    SELECT 
-        household_id,
-        reading_time,
-        V,
-        A,
-        P_agg,
-        ac_1,
-        ac_2,
-        boiler,
-        fridge,
-        washing_machine,
-        internal_temperature,
-        internal_humidity,
-        external_temperature,
-        external_humidity,
-        CASE 
-            WHEN DATEDIFF(MINUTE, LAG(reading_time, 1) OVER (PARTITION BY household_id ORDER BY reading_time), reading_time) = 15
-            THEN LAG(P_agg, 1) OVER (PARTITION BY household_id ORDER BY reading_time)
-        END AS Lag_15m_Power,
-        CASE 
-            WHEN DATEDIFF(MINUTE, LAG(reading_time, 4) OVER (PARTITION BY household_id ORDER BY reading_time), reading_time) = 60
-            THEN LAG(P_agg, 4) OVER (PARTITION BY household_id ORDER BY reading_time)
-        END AS Lag_1h_Power,
-        CASE 
-            WHEN DATEDIFF(MINUTE, LAG(reading_time, 96) OVER (PARTITION BY household_id ORDER BY reading_time), reading_time) = 1440
-            THEN LAG(P_agg, 96) OVER (PARTITION BY household_id ORDER BY reading_time)
-        END AS Lag_24h_Power,
-        CASE 
-            WHEN DATEDIFF(MINUTE, LAG(reading_time, 3) OVER (PARTITION BY household_id ORDER BY reading_time), reading_time) = 45
-            THEN AVG(P_agg) OVER (
-                PARTITION BY household_id
-                ORDER BY reading_time
-                ROWS BETWEEN 3 PRECEDING AND CURRENT ROW
-            )
-        END AS Rolling_1h_Avg_Power,
-        CASE 
-            WHEN DATEDIFF(MINUTE, reading_time, LEAD(reading_time, 1) OVER (PARTITION BY household_id ORDER BY reading_time)) = 15
-            THEN LEAD(P_agg, 1) OVER (PARTITION BY household_id ORDER BY reading_time)
-        END AS Target_Next_15m_Power
-    FROM dbo.ElectricityReadings
-)
-SELECT
+CREATE OR ALTER VIEW dbo.vw_ML_Feature_Store AS
+SELECT 
     household_id,
     reading_time,
-    DATEPART(YEAR,   reading_time) AS Year,
-    DATEPART(MONTH,  reading_time) AS Month,
-    DATEPART(DAY,    reading_time) AS Day,
-    DATEPART(HOUR,   reading_time) AS Hour,
-    DATEPART(MINUTE, reading_time) AS Minute,
+    DATEPART(HOUR, reading_time) AS Hour,
     DATENAME(WEEKDAY, reading_time) AS Day_Name,
-    CASE
-        WHEN DATENAME(WEEKDAY, reading_time) IN ('Saturday', 'Sunday') THEN 1
-        ELSE 0
-    END AS Is_Weekend,
+    CASE WHEN DATENAME(WEEKDAY, reading_time) IN ('Saturday', 'Sunday') THEN 1 ELSE 0 END AS Is_Weekend,
     external_temperature,
-    external_humidity,
     internal_temperature,
-    internal_humidity,
-    V,
-    A,
     ISNULL(ac_1, 0) + ISNULL(ac_2, 0) AS Total_AC_Power,
     boiler,
     fridge,
     washing_machine,
-    Lag_15m_Power,
-    Lag_1h_Power,
-    Lag_24h_Power,
-    ROUND(Rolling_1h_Avg_Power, 2) AS Rolling_1h_Avg_Power,
     P_agg AS Current_Power_Watts,
-    Target_Next_15m_Power
-FROM OrderedReadings;
+    LAG(P_agg, 1) OVER (PARTITION BY household_id ORDER BY reading_time) AS Lag_15m_Power,
+    LAG(P_agg, 4) OVER (PARTITION BY household_id ORDER BY reading_time) AS Lag_1h_Power,
+    LAG(P_agg, 96) OVER (PARTITION BY household_id ORDER BY reading_time) AS Lag_24h_Power,
+    ROUND(AVG(P_agg) OVER (PARTITION BY household_id ORDER BY reading_time ROWS BETWEEN 3 PRECEDING AND CURRENT ROW), 2) AS Rolling_1h_Avg_Power,
+    LEAD(P_agg, 1) OVER (PARTITION BY household_id ORDER BY reading_time) AS Target_Next_15m_Power
+FROM dbo.ElectricityReadings;
 GO
