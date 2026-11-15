@@ -1,12 +1,33 @@
 import os
+import sys
 import pandas as pd
 from sqlalchemy import create_engine, text
+
+
+def validate_before_load(df: pd.DataFrame, source_name: str) -> None:
+    errors = []
+
+    null_timestamps = df['reading_time'].isnull().sum()
+    if null_timestamps > 0:
+        errors.append(f"{source_name}: {null_timestamps} NULL timestamps found")
+
+    duplicate_count = df.duplicated(subset=['household_id', 'reading_time']).sum()
+    if duplicate_count > 0:
+        errors.append(f"{source_name}: {duplicate_count} duplicate (household_id, reading_time) pairs found")
+
+    if errors:
+        for err in errors:
+            print(f"[VALIDATION ERROR] {err}")
+        sys.exit("Pipeline aborted: data quality issues found before loading.")
+
+    print(f"[OK] {source_name}: no NULL timestamps, no duplicates")
+
 
 def main():
     print("Starting Electricity Data Ingestion Pipeline...")
 
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    
+
     files = {
         'House_01': os.path.join(base_dir, 'House_01_cleaned.csv'),
         'House_03': os.path.join(base_dir, 'House_03_cleaned.csv'),
@@ -43,19 +64,23 @@ def main():
     print(f"Total unified records: {total_records:,}")
 
     expected_columns = [
-        'household_id', 'reading_time', 'V', 'A', 'P_agg', 
-        'ac_1', 'ac_2', 'boiler', 'fridge', 'washing_machine', 
-        'issues', 'internal_temperature', 'internal_humidity', 
+        'household_id', 'reading_time', 'V', 'A', 'P_agg',
+        'ac_1', 'ac_2', 'boiler', 'fridge', 'washing_machine',
+        'issues', 'internal_temperature', 'internal_humidity',
         'external_temperature', 'external_humidity'
     ]
     df_combined = df_combined[[col for col in expected_columns if col in df_combined.columns]]
+
+    print("\n--- Pre-Load Validation ---")
+    validate_before_load(df_combined, "Combined Dataset")
+    print("---------------------------\n")
 
     connection_string = (
         "mssql+pyodbc://localhost/ElectricityDB?"
         "driver=ODBC+Driver+17+for+SQL+Server&"
         "trusted_connection=yes"
     )
-    
+
     try:
         engine = create_engine(connection_string, fast_executemany=True)
         with engine.connect() as conn:
@@ -90,6 +115,7 @@ def main():
         )
 
     print("Pipeline completed successfully. 119,375 records loaded.")
+
 
 if __name__ == "__main__":
     main()
