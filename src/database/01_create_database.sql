@@ -7,8 +7,15 @@ GO
 USE ElectricityDB;
 GO
 
-IF OBJECT_ID('dbo.ElectricityReadings', 'U') IS NOT NULL DROP TABLE dbo.ElectricityReadings;
-IF OBJECT_ID('dbo.Households', 'U') IS NOT NULL DROP TABLE dbo.Households;
+IF OBJECT_ID('dbo.ElectricityReadings', 'U') IS NULL AND OBJECT_ID('dbo.Households', 'U') IS NULL
+BEGIN
+    PRINT 'Tables do not exist. Proceeding with creation.';
+END
+ELSE
+BEGIN
+    PRINT 'Tables already exist. Skipping creation. Drop manually if re-setup is needed.';
+    RETURN;
+END
 GO
 
 CREATE TABLE dbo.Households (
@@ -41,11 +48,6 @@ CREATE TABLE dbo.ElectricityReadings (
 );
 GO
 
-CREATE NONCLUSTERED INDEX IX_Readings_Time 
+CREATE NONCLUSTERED INDEX IX_Readings_Time
 ON dbo.ElectricityReadings(reading_time);
-GO
-
-CREATE NONCLUSTERED INDEX IX_Readings_Household_Time 
-ON dbo.ElectricityReadings(household_id, reading_time) 
-INCLUDE (P_agg, external_temperature, ac_1, ac_2, boiler, fridge, washing_machine);
 GO
