@@ -5,8 +5,8 @@ Database: `ElectricityDB`
 Engine: Microsoft SQL Server (T-SQL)
 
 The database consists of two relational tables with a One-to-Many (1:N) relationship:
-- **Households:** Parent table with `household_id` as the Primary Key.
-- **ElectricityReadings:** Child table with a Composite Primary Key `(household_id, reading_time)` and a Foreign Key referencing the `Households` table.
+- **Households:** Parent table with a standard Primary Key: `household_id`.
+- **ElectricityReadings:** Child table with a Composite Primary Key: `(household_id, reading_time)` and a Foreign Key referencing `dbo.Households(household_id)`.
 
 ```
 [dbo.Households] (Parent)
@@ -16,7 +16,7 @@ The database consists of two relational tables with a One-to-Many (1:N) relation
          │
          ▼
 [dbo.ElectricityReadings] (Child)
-    PK: (household_id, reading_time)
+    Composite PK: (household_id, reading_time)
     FK: household_id REFERENCES dbo.Households(household_id)
 ```
 
@@ -55,48 +55,60 @@ Stores 15-minute smart meter readings (119,375 total records).
 
 ---
 
-## 3. Data Transformation
-Before loading into SQL Server, `load_data.py` performs the following transformations:
-1. **Household Identification:** Adds `household_id` (`House_01`, `House_03`, `House_04`) to each corresponding dataset prior to concatenation.
-2. **Column Name Unification:** Resolves schema drift in `House_01_cleaned.csv`, where outdoor temperature appeared under both `external_temparature` (typo) and `external_temperature`, merging them into a single `external_temperature` column using `combine_first()`.
-3. **Timestamp Standardization:** Renames `timestamp` to `reading_time` and converts values to `DATETIME2(0)` format.
-4. **Pre-Load Quality Gate:** Checks the combined DataFrame in Python for NULL timestamps and duplicate `(household_id, reading_time)` pairs before database insertion.
+## 3. Constraints & Indexes
+1. **Primary Keys & Clustered Index:**
+   - `PK_Households (household_id)`: Clustered Primary Key on `dbo.Households`.
+   - `PK_ElectricityReadings (household_id, reading_time)`: Composite Primary Key on `dbo.ElectricityReadings` (creates the default Clustered Index on `(household_id, reading_time)` and prevents duplicate readings per house).
+2. **Foreign Key:**
+   - `FK_Readings_Households`: Links `ElectricityReadings.household_id` to `Households.household_id`.
+3. **Non-Clustered Index:**
+   - `IX_Readings_Time`: Explicitly defined as `NONCLUSTERED INDEX` on `dbo.ElectricityReadings(reading_time)` to accelerate time-range analytical queries across households. (The redundant index on `(household_id, reading_time)` was removed since the Composite PK already covers that key order).
 
 ---
 
-## 4. Data Loading
-- **Source Files:** `House_01_cleaned.csv` (42,432 rows), `House_03_cleaned.csv` (42,861 rows), `House_04_cleaned.csv` (34,082 rows)
-- **Total Records:** 119,375
-- **Loading Method:** Python (`pandas` + `SQLAlchemy` with `fast_executemany=True`, `chunksize=5000`)
-- **Target Tables:** `dbo.Households` and `dbo.ElectricityReadings`
-- **Missing Values:** Preserved as `NULL` where applicable
+## 4. Data Loading Pipeline (`load_data.py`)
+- **Source CSV Files & Record Counts:**
+  - `House_01_cleaned.csv`: **42,432** records
+  - `House_03_cleaned.csv`: **42,861** records
+  - `House_04_cleaned.csv`: **34,082** records
+  - **Total Unified Records:** **119,375** records
+- **Adding `household_id`:** Tags each DataFrame with its corresponding `household_id` (`House_01`, `House_03`, `House_04`) prior to concatenation.
+- **Column Name Unification:** Resolves schema drift in `House_01_cleaned.csv` where outdoor temperature appeared in both `external_temparature` (typo) and `external_temperature` by merging them via `combine_first()` into `external_temperature`.
+- **Timestamp Conversion:** Renames `timestamp` to `reading_time` and converts values to `DATETIME2(0)` via `pd.to_datetime()`.
+- **SQL Server Connection & Atomic Loading:** Connects via `SQLAlchemy` + `pyodbc` (`ODBC Driver 17 for SQL Server`, `fast_executemany=True`) and loads both `dbo.Households` and `dbo.ElectricityReadings` (`chunksize=5000`) inside a single atomic transaction (`with engine.begin() as conn:`).
+- **Post-Load Count Verification in Python:** Executes `SELECT COUNT(*) FROM dbo.ElectricityReadings` immediately after the transaction commits to verify that all 119,375 rows are stored in SQL Server.
 
 ---
 
-## 5. Data Validation & Constraints
-1. **Database Constraints:**
-   - **Composite Primary Key:** `PK_ElectricityReadings (household_id, reading_time)` creates the clustered index and prevents duplicate readings per house.
-   - **Foreign Key:** `FK_Readings_Households` enforces referential integrity.
-   - **Non-Clustered Index:** `IX_Readings_Time` on `reading_time` optimizes cross-household time-range queries.
-2. **Post-Load Verification (`02_data_quality_checks.sql`):**
-   - Total row count check: **119,375 rows** (`PASSED`)
-   - Per-household row count check via `LEFT JOIN` on `dbo.Households`: `House_01` = 42,432, `House_03` = 42,861, `House_04` = 34,082 (`PASSED`)
-   - Duplicate `(household_id, reading_time)` check: **0 duplicates** (`PASSED`)
-   - NULL timestamp & sensor completeness check: **0 NULL timestamps** (`PASSED`)
-   - Negative power values check: **0 negative readings** (`PASSED`)
-   - Time-step continuity check (`LAG` interval = 15 minutes): verifies interval regularity for downstream `kWh` and window function calculations.
+## 5. Data Quality & Validation Framework
+
+### A. Pre-Load Validation in Python (`load_data.py`)
+Executed on the combined CSV DataFrame **before** inserting into SQL Server:
+1. **Required Columns Check:** Verifies that all 15 expected columns are present (`set(expected_columns) - set(df_combined.columns)`), raising a `ValueError` if any column is missing.
+2. **Pre-Load Row Count Check:** Confirms the combined dataset contains exactly 119,375 rows.
+3. **Pre-Load NULL Timestamp Check:** Ensures `reading_time` has `0` missing values before hitting the `NOT NULL` database constraint.
+4. **Pre-Load Duplicate Key Check:** Ensures `0` duplicate `(household_id, reading_time)` rows exist in the CSV files before hitting the Composite Primary Key constraint.
+
+### B. Post-Load Verification in SQL Server (`02_data_quality_checks.sql`)
+Executed inside SQL Server **after** loading to verify table integrity and time-series regularity:
+1. **Total Record Count Check:** Verifies `COUNT(*) = 119,375` (`PASSED`).
+2. **Per-Household Record Count (`LEFT JOIN`):** Joins from `dbo.Households` (`LEFT JOIN dbo.ElectricityReadings`) to ensure no expected household is missing (`House_01` = 42,432, `House_03` = 42,861, `House_04` = 34,082 — `PASSED`).
+3. **Post-Load Duplicate Key Check:** Confirms `0` duplicate `(household_id, reading_time)` pairs (`PASSED`).
+4. **NULL Values Audit:** Audits `reading_time` (`0` NULLs) and sensor columns across each household (`PASSED`).
+5. **Negative Power Check:** Confirms `0` negative power readings across `P_agg` and all sub-metered appliances (`PASSED`).
+6. **15-Minute Time Interval Continuity Check:** Uses `LAG(reading_time)` and `DATEDIFF(MINUTE, ...)` to verify 15-minute interval regularity across each household before relying on `0.25h` energy conversion and time-series window functions.
 
 ---
 
 ## 6. Module Structure
 ```
 src/database/
-├── 01_create_database.sql        # Database, tables, constraints, and index
-├── 02_data_quality_checks.sql    # Post-load validation & interval continuity checks
-├── 03_analytical_views.sql       # KPI & ML Feature Store views
+├── 01_create_database.sql        # Database, tables, constraints, and nonclustered index
+├── 02_data_quality_checks.sql    # Post-load SQL validation & interval continuity checks
+├── 03_analytical_views.sql       # KPI & ML Feature Store views (gap-aware LAG/LEAD)
 ├── 04_business_insights.sql      # Analytical queries & business insights
 ├── load_data.py                  # Python ETL & pre-load validation script
-├── README.md                     # Quick schema & pipeline overview
+├── README.md                     # Quick schema, loading, and validation overview
 └── Docs/
     └── database_documentation.md # Detailed technical documentation
 ```
