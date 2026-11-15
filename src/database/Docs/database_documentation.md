@@ -59,9 +59,9 @@ The database consists of two relational tables with a One-to-Many (1:N) relation
 
 | Decision | Justification |
 |---|---|
-| **Composite Primary Key** `(household_id, reading_time)` in `ElectricityReadings` | Physically prevents duplicate readings for the same house at the same timestamp |
+| **Composite Primary Key** `(household_id, reading_time)` in `ElectricityReadings` | Physically prevents duplicate readings and creates the Clustered Index on `(household_id, reading_time)` |
 | **Foreign Key** on `household_id` | Enforces referential integrity — no reading can exist without a valid household |
-| **Non-Clustered Indexes** on `household_id` and `reading_time` | Accelerates time-range queries for dashboard and ML workloads |
+| **Non-Clustered Index** `IX_Readings_Time` on `reading_time` | Accelerates cross-household time-range queries without duplicating the Composite PK index |
 | **FLOAT data type** for sensor columns | Accommodates decimal precision required for voltage, amperage, and power readings |
 
 ---
@@ -203,8 +203,9 @@ All validation checks were executed via `02_data_quality_checks.sql` after the l
 | Duplicate `(household_id, reading_time)` pairs | 0 | 0 | ✅ PASSED |
 | Negative `P_agg` power values | 0 | 0 | ✅ PASSED |
 | NULL `reading_time` values | 0 | 0 | ✅ PASSED |
+| 15-minute interval continuity (`DATEDIFF(MINUTE, LAG(reading_time), reading_time) = 15`) | Regular 15m grid | Verified per household | ✅ PASSED |
 
-All 7 checks passed. The data integrity constraints defined in the schema (Composite PK, FK) are consistent with the validation results.
+All checks passed (including pre-load validation in `load_data.py` and post-load SQL checks in `02_data_quality_checks.sql`). Per-household counts use `LEFT JOIN` from `dbo.Households` to ensure no household is missing, and interval continuity is verified before relying on `0.25h` energy conversion or window functions (`LAG`/`LEAD`).
 
 ---
 
@@ -232,7 +233,7 @@ Pre-computes time-series features using SQL Window Functions:
 | `Lag_24h_Power` | `LAG(P_agg, 96)` | Power reading 24 hours ago |
 | `Rolling_1h_Avg_Power` | `AVG() OVER (ROWS 3 PRECEDING)` | Rolling average over last hour |
 | `Target_Next_15m_Power` | `LEAD(P_agg, 1)` | Target variable for prediction |
-| `Is_Weekend` | `DATEPART(WEEKDAY)` | Binary weekend indicator |
+| `Is_Weekend` | `DATENAME(WEEKDAY) IN ('Saturday', 'Sunday')` | Server `DATEFIRST`-independent binary weekend indicator |
 
 ---
 

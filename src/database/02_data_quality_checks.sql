@@ -12,22 +12,23 @@ FROM dbo.ElectricityReadings;
 GO
 
 SELECT 
-    household_id,
-    COUNT(*) AS Actual_Count,
-    CASE household_id
+    h.household_id,
+    COUNT(r.reading_time) AS Actual_Count,
+    CASE h.household_id
         WHEN 'House_01' THEN 42432
         WHEN 'House_03' THEN 42861
         WHEN 'House_04' THEN 34082
     END AS Expected_Count,
     CASE 
-        WHEN household_id = 'House_01' AND COUNT(*) = 42432 THEN 'PASSED'
-        WHEN household_id = 'House_03' AND COUNT(*) = 42861 THEN 'PASSED'
-        WHEN household_id = 'House_04' AND COUNT(*) = 34082 THEN 'PASSED'
+        WHEN h.household_id = 'House_01' AND COUNT(r.reading_time) = 42432 THEN 'PASSED'
+        WHEN h.household_id = 'House_03' AND COUNT(r.reading_time) = 42861 THEN 'PASSED'
+        WHEN h.household_id = 'House_04' AND COUNT(r.reading_time) = 34082 THEN 'PASSED'
         ELSE 'FAILED'
     END AS Status
-FROM dbo.ElectricityReadings
-GROUP BY household_id
-ORDER BY household_id;
+FROM dbo.Households h
+LEFT JOIN dbo.ElectricityReadings r ON h.household_id = r.household_id
+GROUP BY h.household_id
+ORDER BY h.household_id;
 GO
 
 WITH Duplicates AS (
@@ -71,4 +72,28 @@ SELECT
     SUM(CASE WHEN washing_machine < 0 THEN 1 ELSE 0 END) AS Negative_WashingMachine
 FROM dbo.ElectricityReadings
 GROUP BY household_id;
+GO
+
+WITH TimeIntervals AS (
+    SELECT 
+        household_id,
+        reading_time,
+        LAG(reading_time) OVER (PARTITION BY household_id ORDER BY reading_time) AS prev_reading_time,
+        DATEDIFF(
+            MINUTE,
+            LAG(reading_time) OVER (PARTITION BY household_id ORDER BY reading_time),
+            reading_time
+        ) AS Interval_Minutes
+    FROM dbo.ElectricityReadings
+)
+SELECT 
+    household_id,
+    COUNT(*) AS Total_Transitions,
+    SUM(CASE WHEN Interval_Minutes = 15 THEN 1 ELSE 0 END) AS Regular_15m_Intervals,
+    SUM(CASE WHEN Interval_Minutes <> 15 THEN 1 ELSE 0 END) AS Irregular_Gaps_Count,
+    MAX(Interval_Minutes) AS Max_Gap_Minutes
+FROM TimeIntervals
+WHERE prev_reading_time IS NOT NULL
+GROUP BY household_id
+ORDER BY household_id;
 GO

@@ -40,35 +40,52 @@ WITH OrderedReadings AS (
         internal_humidity,
         external_temperature,
         external_humidity,
-        LAG(P_agg, 1) OVER (PARTITION BY household_id ORDER BY reading_time) AS Lag_15m_Power,
-        LAG(P_agg, 4) OVER (PARTITION BY household_id ORDER BY reading_time) AS Lag_1h_Power,
-        LAG(P_agg, 96) OVER (PARTITION BY household_id ORDER BY reading_time) AS Lag_24h_Power,
-        AVG(P_agg) OVER (
-            PARTITION BY household_id 
-            ORDER BY reading_time 
-            ROWS BETWEEN 3 PRECEDING AND CURRENT ROW
-        ) AS Rolling_1h_Avg_Power,
-        LEAD(P_agg, 1) OVER (PARTITION BY household_id ORDER BY reading_time) AS Target_Next_15m_Power
+        CASE 
+            WHEN DATEDIFF(MINUTE, LAG(reading_time, 1) OVER (PARTITION BY household_id ORDER BY reading_time), reading_time) = 15
+            THEN LAG(P_agg, 1) OVER (PARTITION BY household_id ORDER BY reading_time)
+        END AS Lag_15m_Power,
+        CASE 
+            WHEN DATEDIFF(MINUTE, LAG(reading_time, 4) OVER (PARTITION BY household_id ORDER BY reading_time), reading_time) = 60
+            THEN LAG(P_agg, 4) OVER (PARTITION BY household_id ORDER BY reading_time)
+        END AS Lag_1h_Power,
+        CASE 
+            WHEN DATEDIFF(MINUTE, LAG(reading_time, 96) OVER (PARTITION BY household_id ORDER BY reading_time), reading_time) = 1440
+            THEN LAG(P_agg, 96) OVER (PARTITION BY household_id ORDER BY reading_time)
+        END AS Lag_24h_Power,
+        CASE 
+            WHEN DATEDIFF(MINUTE, LAG(reading_time, 3) OVER (PARTITION BY household_id ORDER BY reading_time), reading_time) = 45
+            THEN AVG(P_agg) OVER (
+                PARTITION BY household_id
+                ORDER BY reading_time
+                ROWS BETWEEN 3 PRECEDING AND CURRENT ROW
+            )
+        END AS Rolling_1h_Avg_Power,
+        CASE 
+            WHEN DATEDIFF(MINUTE, reading_time, LEAD(reading_time, 1) OVER (PARTITION BY household_id ORDER BY reading_time)) = 15
+            THEN LEAD(P_agg, 1) OVER (PARTITION BY household_id ORDER BY reading_time)
+        END AS Target_Next_15m_Power
     FROM dbo.ElectricityReadings
 )
-SELECT 
+SELECT
     household_id,
     reading_time,
-    DATEPART(YEAR, reading_time) AS Year,
-    DATEPART(MONTH, reading_time) AS Month,
-    DATEPART(DAY, reading_time) AS Day,
-    DATEPART(HOUR, reading_time) AS Hour,
+    DATEPART(YEAR,   reading_time) AS Year,
+    DATEPART(MONTH,  reading_time) AS Month,
+    DATEPART(DAY,    reading_time) AS Day,
+    DATEPART(HOUR,   reading_time) AS Hour,
     DATEPART(MINUTE, reading_time) AS Minute,
-    DATEPART(WEEKDAY, reading_time) AS Day_Of_Week,
     DATENAME(WEEKDAY, reading_time) AS Day_Name,
-    CASE WHEN DATEPART(WEEKDAY, reading_time) IN (1, 7) THEN 1 ELSE 0 END AS Is_Weekend,
+    CASE
+        WHEN DATENAME(WEEKDAY, reading_time) IN ('Saturday', 'Sunday') THEN 1
+        ELSE 0
+    END AS Is_Weekend,
     external_temperature,
     external_humidity,
     internal_temperature,
     internal_humidity,
     V,
     A,
-    ISNULL(ac_1,0) + ISNULL(ac_2,0) AS Total_AC_Power,
+    ISNULL(ac_1, 0) + ISNULL(ac_2, 0) AS Total_AC_Power,
     boiler,
     fridge,
     washing_machine,
