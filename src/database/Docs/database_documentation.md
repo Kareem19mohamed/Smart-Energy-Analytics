@@ -2,279 +2,206 @@
 ## Smart Energy Analytics & Prediction Project
 
 ### Overview
-This document provides comprehensive documentation for the database layer of the Smart Energy Analytics project. It covers the relational schema, data dictionary, data transformation and loading pipeline, validation results, and analytical views built on Microsoft SQL Server.
+This document provides the complete technical documentation for the database layer (`ElectricityDB`) of the Smart Energy Analytics project. It covers the relational schema, data dictionary, constraints and indexes, data transformation and loading pipeline, pre-load and post-load validation framework, analytical serving views, and business insights built on Microsoft SQL Server.
 
 ---
 
 ### Table of Contents
-1. [Schema Design](#1-schema-design)
-2. [Data Dictionary](#2-data-dictionary)
-3. [Data Transformation](#3-data-transformation)
-4. [Data Loading](#4-data-loading)
-5. [Data Validation Results](#5-data-validation-results)
+1. [Schema Overview & Design](#1-schema-overview--design)
+2. [Table Definitions & Data Dictionary](#2-table-definitions--data-dictionary)
+3. [Constraints & Indexes](#3-constraints--indexes)
+4. [Data Transformation & Loading Pipeline](#4-data-transformation--loading-pipeline)
+5. [Data Quality & Validation Framework](#5-data-quality--validation-framework)
 6. [Analytical Views & Serving Layer](#6-analytical-views--serving-layer)
 7. [Key Business Insights](#7-key-business-insights)
-8. [File Structure](#8-file-structure)
+8. [Module Structure](#8-module-structure)
 
 ---
 
-## 1. Schema Design
+## 1. Schema Overview & Design
 
 **Database:** `ElectricityDB`  
-**Engine:** Microsoft SQL Server 2019 (T-SQL)  
+**Engine:** Microsoft SQL Server (T-SQL)  
 **Architecture:** Relational — Parent/Child (One-to-Many)
 
-The database consists of two relational tables with a One-to-Many (1:N) relationship:
-- **Households:** Parent table with `household_id` as the Primary Key.
-- **ElectricityReadings:** Child table with a Composite Primary Key `(household_id, reading_time)` and a Foreign Key referencing the `Households` table.
+The database consists of two relational tables with a One-to-Many (`1:N`) relationship:
+- **Households (`dbo.Households`):** Parent table with a standard Primary Key: `household_id`.
+- **ElectricityReadings (`dbo.ElectricityReadings`):** Child table with a Composite Primary Key: `(household_id, reading_time)` and a Foreign Key referencing `dbo.Households(household_id)`.
 
 ```
-┌─────────────────────────┐
-│     dbo.Households      │
-│  ──────────────────     │
-│  household_id  [PK]     │
-│  source_file            │
-│  description            │
-│  created_at             │
-└───────────┬─────────────┘
-            │  1
-            │
-            │ One-to-Many
-            │
-            │  ∞
-┌───────────▼──────────────────────────┐
+┌──────────────────────────────────────┐
+│            dbo.Households            │
+│  ──────────────────────────────────  │
+│  household_id   [PK]  VARCHAR(20)    │
+│  source_file          VARCHAR(100)   │
+│  description          NVARCHAR(255)  │
+│  created_at           DATETIME2      │
+└──────────────────┬───────────────────┘
+                   │  1
+                   │
+                   │  One-to-Many (1:N)
+                   │
+                   │  ∞
+┌──────────────────▼───────────────────┐
 │        dbo.ElectricityReadings       │
-│  ──────────────────────────────      │
-│  household_id   [PK, FK]             │
-│  reading_time   [PK]                 │
-│  V, A, P_agg                         │
-│  ac_1, ac_2, boiler                  │
-│  fridge, washing_machine             │
-│  internal_temperature/humidity       │
-│  external_temperature/humidity       │
+│  ──────────────────────────────────  │
+│  household_id   [PK, FK] VARCHAR(20) │
+│  reading_time   [PK]     DATETIME2(0)│
+│  V, A, P_agg             FLOAT       │
+│  ac_1, ac_2, boiler      FLOAT       │
+│  fridge, washing_machine FLOAT       │
+│  issues                  FLOAT       │
+│  internal_temp/humidity  FLOAT       │
+│  external_temp/humidity  FLOAT       │
 └──────────────────────────────────────┘
 ```
 
-### Design Decisions
-
-| Decision | Justification |
-|---|---|
-| **Composite Primary Key** `(household_id, reading_time)` in `ElectricityReadings` | Physically prevents duplicate readings and creates the Clustered Index on `(household_id, reading_time)` |
-| **Foreign Key** on `household_id` | Enforces referential integrity — no reading can exist without a valid household |
-| **Non-Clustered Index** `IX_Readings_Time` on `reading_time` | Accelerates cross-household time-range queries without duplicating the Composite PK index |
-| **FLOAT data type** for sensor columns | Accommodates decimal precision required for voltage, amperage, and power readings |
-
 ---
 
-## 2. Data Dictionary
+## 2. Table Definitions & Data Dictionary
 
-### Table: `dbo.Households`
-> Parent table storing metadata for each monitored residence. Contains 3 records (one per household).
+### A. Parent Table: `dbo.Households`
+> Stores metadata for each monitored residence (3 records total).
 
-| Column | Data Type | Constraint | Description |
+| Column Name | Data Type | Constraint | Description |
 |---|---|---|---|
 | `household_id` | `VARCHAR(20)` | **PRIMARY KEY** | Unique residence identifier (`House_01`, `House_03`, `House_04`) |
-| `source_file` | `VARCHAR(100)` | NOT NULL | Original CSV source file name |
-| `description` | `NVARCHAR(255)` | NULL | Summary of monitored appliances |
-| `created_at` | `DATETIME2` | DEFAULT `SYSDATETIME()` | Record creation timestamp |
+| `source_file` | `VARCHAR(100)` | `NOT NULL` | Source CSV file name (`House_01_cleaned.csv`, etc.) |
+| `description` | `NVARCHAR(255)` | `NULL` | Household description |
+| `created_at` | `DATETIME2` | `DEFAULT SYSDATETIME()` | Record creation timestamp |
 
 ---
 
-### Table: `dbo.ElectricityReadings`
-> Child table storing 15-minute interval smart meter readings. Contains **119,375 records** across three households spanning July 2022 – September 2023.
+### B. Child Table: `dbo.ElectricityReadings`
+> Stores 15-minute interval smart meter readings (**119,375 records** across three households spanning July 2022 – September 2023).
 
-| Column | Data Type | Constraint | Description |
+| Column Name | Data Type | Constraint | Description |
 |---|---|---|---|
-| `household_id` | `VARCHAR(20)` | **PK**, **FK** → Households | References parent household |
-| `reading_time` | `DATETIME2(0)` | **PK** | Timestamp of the 15-minute interval reading |
-| `V` | `FLOAT` | NULL | Grid voltage in Volts (~230V standard) |
-| `A` | `FLOAT` | NULL | Current load in Amperes |
-| `P_agg` | `FLOAT` | NULL | Total active aggregate power (Watts) |
-| `ac_1` | `FLOAT` | NULL | Air Conditioner Unit 1 power (Watts) |
-| `ac_2` | `FLOAT` | NULL | Air Conditioner Unit 2 power (Watts) |
-| `boiler` | `FLOAT` | NULL | Water boiler / heater power (Watts) |
-| `fridge` | `FLOAT` | NULL | Refrigerator power (Watts) |
-| `washing_machine` | `FLOAT` | NULL | Washing machine power (Watts) |
-| `issues` | `FLOAT` | NULL | Dataset-provided field — exact semantics to be confirmed from source documentation |
-| `internal_temperature` | `FLOAT` | NULL | Indoor ambient temperature (°C) |
-| `internal_humidity` | `FLOAT` | NULL | Indoor relative humidity (%) |
-| `external_temperature` | `FLOAT` | NULL | Outdoor ambient temperature (°C) — unified from two source column variants (see Section 3) |
-| `external_humidity` | `FLOAT` | NULL | Outdoor relative humidity (%) |
+| `household_id` | `VARCHAR(20)` | **PK**, **FK** → `Households` | Foreign key referencing `dbo.Households(household_id)` |
+| `reading_time` | `DATETIME2(0)` | **PK**, `NOT NULL` | Timestamp of the 15-minute reading (Composite PK with `household_id`) |
+| `V` | `FLOAT` | `NULL` | Grid voltage in Volts (~230V standard) |
+| `A` | `FLOAT` | `NULL` | Current load in Amperes |
+| `P_agg` | `FLOAT` | `NULL` | Total active aggregate power (Watts) |
+| `ac_1` | `FLOAT` | `NULL` | Air Conditioner Unit 1 power (Watts) |
+| `ac_2` | `FLOAT` | `NULL` | Air Conditioner Unit 2 power (Watts) |
+| `boiler` | `FLOAT` | `NULL` | Water boiler / heater power (Watts) |
+| `fridge` | `FLOAT` | `NULL` | Refrigerator power (Watts) |
+| `washing_machine` | `FLOAT` | `NULL` | Washing machine power (Watts) |
+| `issues` | `FLOAT` | `NULL` | Dataset-provided indicator field (retained from raw source CSV) |
+| `internal_temperature` | `FLOAT` | `NULL` | Indoor ambient temperature (°C) |
+| `internal_humidity` | `FLOAT` | `NULL` | Indoor relative humidity (%) |
+| `external_temperature` | `FLOAT` | `NULL` | Outdoor ambient temperature (°C) — unified from source columns |
+| `external_humidity` | `FLOAT` | `NULL` | Outdoor relative humidity (%) |
 
 ---
 
-## 3. Data Transformation
+## 3. Constraints & Indexes
 
-Before loading into SQL Server, the following transformations were applied to the raw CSV files:
-
-### 3.1 Adding Household Identifier
-Each CSV file represents one household. A `household_id` column was added programmatically to tag every row with its source household before concatenation:
-
-```python
-df['household_id'] = 'House_01'   # repeated per file
-```
-
-### 3.2 Column Name Unification (Schema Drift Resolution)
-`House_01_cleaned.csv` contained a misspelled column `external_temparature` (with **'a'** instead of **'e'**) alongside the correctly named `external_temperature`. Both columns carried partial data.
-
-Rather than discarding either column, `combine_first()` was used to merge them into a single unified column:
-
-```python
-df_house_01['external_temperature'] = (
-    df_house_01['external_temperature']
-    .combine_first(df_house_01['external_temparature'])
-)
-df_house_01.drop(columns=['external_temparature'], inplace=True)
-```
-
-This preserves all 42,432 outdoor temperature readings for House_01, which are critical for AC-temperature correlation analysis. The final column stored in the database is always `external_temperature`.
-
-### 3.3 Column Selection & Alignment
-After concatenation, only the expected schema columns are retained to ensure consistency across all three households:
-
-```python
-expected_columns = [
-    'household_id', 'reading_time', 'V', 'A', 'P_agg',
-    'ac_1', 'ac_2', 'boiler', 'fridge', 'washing_machine',
-    'issues', 'internal_temperature', 'internal_humidity',
-    'external_temperature', 'external_humidity'
-]
-df_combined = df_combined[[col for col in expected_columns if col in df_combined.columns]]
-```
-
----
-
-## 4. Data Loading
-
-### Source Files
-
-| File | Household | Records |
+| Object | Type | Definition & Justification |
 |---|---|---|
-| `House_01_cleaned.csv` | House_01 | 42,432 |
-| `House_03_cleaned.csv` | House_03 | 42,861 |
-| `House_04_cleaned.csv` | House_04 | 34,082 |
-| **Total** | | **119,375** |
-
-### Loading Configuration
-
-| Parameter | Value |
-|---|---|
-| **Script** | `load_data.py` |
-| **Libraries** | Python Pandas + SQLAlchemy |
-| **Connection** | `mssql+pyodbc` via ODBC Driver 17 for SQL Server |
-| **Target Database** | `ElectricityDB` on `localhost` |
-| **Target Table** | `dbo.ElectricityReadings` |
-| **Insert Mode** | `append` (non-destructive) |
-| **Chunk Size** | 5,000 rows per batch |
-| **Missing Values** | Preserved as `NULL` where applicable |
-
-### Loading Pipeline
-
-```
-[House_01_cleaned.csv]  ─┐
-[House_03_cleaned.csv]  ─┼──► pd.read_csv()  ──► Add household_id
-[House_04_cleaned.csv]  ─┘
-            │
-            ▼
-    Column unification (external_temparature fix)
-            │
-            ▼
-    pd.concat() → 119,375 unified rows
-            │
-            ▼
-    SQLAlchemy → SQL Server (ElectricityDB)
-            │
-            ▼
-    to_sql(chunksize=5000) → dbo.ElectricityReadings
-```
+| `PK_Households` | **Clustered Primary Key** | On `dbo.Households(household_id)` — uniquely identifies each household. |
+| `PK_ElectricityReadings` | **Composite Primary Key (Clustered)** | On `dbo.ElectricityReadings(household_id, reading_time)` — physically prevents duplicate readings per house and serves as the Clustered Index for household-ordered time-series scans. |
+| `FK_Readings_Households` | **Foreign Key** | Enforces referential integrity between `ElectricityReadings.household_id` and `Households.household_id`. |
+| `IX_Readings_Time` | **Non-Clustered Index** | Explicitly created via `CREATE NONCLUSTERED INDEX` on `dbo.ElectricityReadings(reading_time)` to accelerate cross-household time-range queries. (A redundant index on `(household_id, reading_time)` was intentionally omitted since `PK_ElectricityReadings` already indexes that exact key order). |
+| **Idempotent Creation** | **Safety Check** | `01_create_database.sql` checks `IF OBJECT_ID(...) IS NULL` before creating tables so re-running the script does not accidentally drop existing tables or data. |
 
 ---
 
-## 5. Data Validation Results
+## 4. Data Transformation & Loading Pipeline
 
-All validation checks were executed via `02_data_quality_checks.sql` after the loading pipeline completed:
+### 4.1 Source Files & Record Counts
+
+| Source File | `household_id` | Records |
+|---|---|---|
+| `House_01_cleaned.csv` | `House_01` | 42,432 |
+| `House_03_cleaned.csv` | `House_03` | 42,861 |
+| `House_04_cleaned.csv` | `House_04` | 34,082 |
+| **Total Unified Dataset** | **3 Households** | **119,375** |
+
+### 4.2 Data Transformations (`load_data.py`)
+1. **Path Resolution (`resolve_data_dir`):** Automatically locates the CSV files in `<project_root>/data`, `<project_root>/data/processed`, or the script directory.
+2. **Adding `household_id`:** Tags each DataFrame with its corresponding `household_id` (`House_01`, `House_03`, `House_04`) prior to concatenation.
+3. **Column Name Unification (Schema Drift Fix):** `House_01_cleaned.csv` contained a misspelled column `external_temparature` alongside `external_temperature`. `prepare_and_validate_house()` merges both columns using `combine_first()` into `external_temperature` and drops the misspelled column.
+4. **Timestamp Standardization:** Renames `timestamp` to `reading_time` and converts values to `DATETIME2(0)` via `pd.to_datetime()`.
+5. **Per-File Schema & Count Validation:** Validates each individual house DataFrame for all 15 required columns and exact expected row count before `pd.concat()`.
+
+### 4.3 Database Loading Configuration
+- **Libraries:** Python `pandas` + `SQLAlchemy` (`pyodbc` with `ODBC Driver 17 for SQL Server`, `fast_executemany=True`)
+- **Server Configuration:** Reads `SQL_SERVER` environment variable (defaults to `localhost`) and verifies connectivity via `SELECT 1`
+- **Atomic Transaction:** Executes `DELETE FROM dbo.ElectricityReadings`, `DELETE FROM dbo.Households`, and loads both `dbo.Households` and `dbo.ElectricityReadings` (`chunksize=5000`) inside a single `with engine.begin() as conn:` transaction so any failure triggers a full rollback
+- **Missing Values:** Preserved as `NULL` where applicable
+
+---
+
+## 5. Data Quality & Validation Framework
+
+Validation is split into two distinct stages to separate **source CSV quality** from **database storage integrity**:
+
+### Stage A: Pre-Load Validation in Python (`load_data.py`)
+Executed on the CSV DataFrames **before** inserting into SQL Server:
+1. **Per-House Column Check:** Ensures all 15 required columns exist in each CSV file before concatenation.
+2. **Per-House & Total Row Count Check:** Verifies `House_01 = 42,432`, `House_03 = 42,861`, `House_04 = 34,082`, and `Total = 119,375`.
+3. **Pre-Load NULL Timestamp Check:** Confirms `0` NULL values in `reading_time` before hitting the `NOT NULL` SQL constraint.
+4. **Pre-Load Duplicate Key Check:** Confirms `0` duplicate `(household_id, reading_time)` rows in the source CSVs before hitting the Composite Primary Key constraint.
+
+### Stage B: Post-Load Verification in SQL Server (`02_data_quality_checks.sql` & `load_data.py`)
+Executed inside SQL Server **after** loading:
 
 | Validation Check | Expected | Actual | Status |
 |---|---|---|---|
-| Total record count | 119,375 | 119,375 | ✅ PASSED |
-| House_01 record count | 42,432 | 42,432 | ✅ PASSED |
-| House_03 record count | 42,861 | 42,861 | ✅ PASSED |
-| House_04 record count | 34,082 | 34,082 | ✅ PASSED |
+| Total record count in `dbo.ElectricityReadings` | 119,375 | 119,375 | ✅ PASSED |
+| `House_01` count (`LEFT JOIN` from `dbo.Households`) | 42,432 | 42,432 | ✅ PASSED |
+| `House_03` count (`LEFT JOIN` from `dbo.Households`) | 42,861 | 42,861 | ✅ PASSED |
+| `House_04` count (`LEFT JOIN` from `dbo.Households`) | 34,082 | 34,082 | ✅ PASSED |
 | Duplicate `(household_id, reading_time)` pairs | 0 | 0 | ✅ PASSED |
-| Negative `P_agg` power values | 0 | 0 | ✅ PASSED |
 | NULL `reading_time` values | 0 | 0 | ✅ PASSED |
-| 15-minute interval continuity (`DATEDIFF(MINUTE, LAG(reading_time), reading_time) = 15`) | Regular 15m grid | Verified per household | ✅ PASSED |
-
-All checks passed (including pre-load validation in `load_data.py` and post-load SQL checks in `02_data_quality_checks.sql`). Per-household counts use `LEFT JOIN` from `dbo.Households` to ensure no household is missing, and interval continuity is verified before relying on `0.25h` energy conversion or window functions (`LAG`/`LEAD`).
+| Negative power readings (`Rows_With_Negative_Readings`) | 0 | 0 | ✅ PASSED |
+| 15-minute interval continuity (`DATEDIFF(MINUTE, LAG(reading_time), reading_time) = 15`) | 99.99% regular (119,360 / 119,372 transitions) | `House_01`: 1 gap, `House_03`: 0 gaps, `House_04`: 11 gaps | ✅ VERIFIED |
 
 ---
 
 ## 6. Analytical Views & Serving Layer
 
-Two SQL Views are created in `03_analytical_views.sql` to serve downstream teams:
+Created in `03_analytical_views.sql` for downstream teams:
 
-### `dbo.vw_Household_KPIs`
-> For the **BI Dashboard team** (Power BI / Tableau)
+### 6.1 `dbo.vw_Household_KPIs` (For BI Dashboard Team)
+Provides per-household KPIs (`Total_Readings`, `Regular_15m_Readings`, `Data_Start_Date`, `Data_End_Date`, `Total_Monitored_Days`, `Avg_Power_Watts`, `Max_Peak_Power_Watts`, `Total_Energy_kWh` verified on regular 15-minute intervals, and average indoor/outdoor temperatures).
 
-Provides per-household summary metrics:
-- Total readings and monitored date range
-- Average, max, and total energy consumption (kWh)
-- Average indoor and outdoor temperatures
+### 6.2 `dbo.vw_ML_Feature_Store` (For Machine Learning Team)
+Uses two CTEs (`StepIntervals` and `WindowChecked`) to verify step-by-step 15-minute regularity across each window (`SUM(Is_Irregular_Step) OVER (ROWS BETWEEN ... PRECEDING AND CURRENT ROW) = 0`) before emitting time-series lag features:
 
-### `dbo.vw_ML_Feature_Store`
-> For the **Machine Learning team**
-
-Pre-computes time-series features using SQL Window Functions:
-
-| Feature | SQL Function | Description |
+| Feature | Logic | Description |
 |---|---|---|
-| `Lag_15m_Power` | `LAG(P_agg, 1)` | Power reading 15 minutes ago |
-| `Lag_1h_Power` | `LAG(P_agg, 4)` | Power reading 1 hour ago |
-| `Lag_24h_Power` | `LAG(P_agg, 96)` | Power reading 24 hours ago |
-| `Rolling_1h_Avg_Power` | `AVG() OVER (ROWS 3 PRECEDING)` | Rolling average over last hour |
-| `Target_Next_15m_Power` | `LEAD(P_agg, 1)` | Target variable for prediction |
-| `Is_Weekend` | `DATENAME(WEEKDAY) IN ('Saturday', 'Sunday')` | Server `DATEFIRST`-independent binary weekend indicator |
+| `Lag_15m_Power` | `LAG(P_agg, 1)` when `Prev_Step_Min = 15` | Power reading exactly 15 minutes ago (`NULL` if preceded by a time gap) |
+| `Lag_1h_Power` | `LAG(P_agg, 4)` when `Irregular_Steps_Last_4 = 0` | Power reading 1 hour ago across 4 verified consecutive 15-minute steps |
+| `Lag_24h_Power` | `LAG(P_agg, 96)` when `Irregular_Steps_Last_96 = 0` | Power reading 24 hours ago across 96 verified consecutive 15-minute steps |
+| `Rolling_1h_Avg_Power` | `AVG(P_agg)` over 4 rows when `Irregular_Steps_Last_3 = 0` | Rolling 1-hour average power across 4 contiguous 15-minute readings |
+| `Target_Next_15m_Power` | `LEAD(P_agg, 1)` when `Next_Step_Min = 15` | Next 15-minute power target variable |
+| `Is_Weekend` | `((DATEPART(WEEKDAY, reading_time) + @@DATEFIRST) % 7) IN (0, 1)` | Server `@@DATEFIRST`-independent and language-independent weekend flag |
+| `Total_AC_Power` | `CASE WHEN ac_1 IS NULL AND ac_2 IS NULL THEN NULL ELSE ISNULL(ac_1,0)+ISNULL(ac_2,0) END` | Combined AC power preserving true `NULL` when both units are missing |
 
 ---
 
 ## 7. Key Business Insights
 
-Results from `04_business_insights.sql`:
-
-### Household Consumption Ranking
-| Rank | Household | Total Energy (kWh) | Est. Cost (EUR) |
-|---|---|---|---|
-| 1 | House_01 | 3,508.71 | €701.74 |
-| 2 | House_04 | 3,201.44 | €640.29 |
-| 3 | House_03 | 2,912.89 | €582.58 |
-
-### Peak Consumption Hours
-Peak demand occurs between **17:00 – 19:00 (5–7 PM)** driven primarily by:
-- Air Conditioning units responding to afternoon heat buildup
-- Water Boilers activated upon residents returning home
-
-### Temperature Impact on Energy Consumption
-| Temperature Bracket | Avg Total Power (W) | Avg AC Power (W) |
-|---|---|---|
-| < 15°C | ~850W | ~120W |
-| 15°C – 25°C | ~1,100W | ~350W |
-| 25°C – 30°C | ~1,450W | ~680W |
-| > 30°C | ~2,600W | ~1,900W |
-
-> At temperatures above 30°C, AC consumption surges to **3× its baseline**, dominating total household energy use.
+Implemented in `04_business_insights.sql`:
+1. **Household Consumption Ranking:** Compares both `Total_Energy_Rank` (`SUM(P_agg * 0.25 / 1000.0)`) and `Avg_Power_Rank` (`AVG(P_agg)`) alongside `Total_Monitored_Days` (`House_01` ranks #1 in cumulative kWh over 443 days, while `House_04` ranks #1 in average power draw over 355 days).
+2. **Peak Consumption Hours:** Identifies top 3 peak hours per household and compares all 4 sub-metered appliances (`AC`, `Boiler`, `Fridge`, `Washing Machine`) to classify the `Primary_Peak_Driver`.
+3. **Appliance Energy Contribution:** Computes kWh and percentage share for each monitored appliance plus `Other_Unmetered_Share_Pct` (representing the remaining difference between `P_agg` and the 5 sub-metered appliances).
+4. **Temperature vs. Consumption:** Groups readings into continuous temperature brackets (`< 15C`, `15C - 20C`, `20C - 25C`, `25C - 30C`, `30C - 35C`, `35C+`) ordered chronologically by `Bracket_Order`.
+5. **Weekday vs. Weekend Demand:** Uses the unified `@@DATEFIRST`-independent weekend formula to compare overall and per-appliance power consumption.
 
 ---
 
-## 8. File Structure
+## 8. Module Structure
 
 ```
 src/database/
-├── 01_create_database.sql        # Database, tables, Composite PK, FK, indexes
-├── 02_data_quality_checks.sql    # Validation framework (7 checks)
-├── 03_analytical_views.sql       # Serving layer views for Dashboard & ML teams
+├── 01_create_database.sql        # Database, tables, constraints, and nonclustered index
+├── 02_data_quality_checks.sql    # Post-load SQL validation & 15m interval continuity checks
+├── 03_analytical_views.sql       # KPI & gap-verified ML Feature Store views
 ├── 04_business_insights.sql      # Business analytics queries
-├── load_data.py                  # Python ETL pipeline (Pandas + SQLAlchemy)
-├── README.md                     # Quick reference schema overview
+├── load_data.py                  # Python ETL & pre/post-load validation pipeline
 └── Docs/
-    └── database_documentation.md  # This file — full technical documentation
+    └── database_documentation.md # Complete technical documentation
 ```
