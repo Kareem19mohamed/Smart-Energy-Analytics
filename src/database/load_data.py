@@ -2,6 +2,19 @@ import os
 import pandas as pd
 from sqlalchemy import create_engine, text
 
+EXPECTED_COLUMNS = [
+    'household_id', 'reading_time', 'V', 'A', 'P_agg',
+    'ac_1', 'ac_2', 'boiler', 'fridge', 'washing_machine',
+    'issues', 'internal_temperature', 'internal_humidity',
+    'external_temperature', 'external_humidity'
+]
+
+EXPECTED_COUNTS = {
+    'House_01': 42432,
+    'House_03': 42861,
+    'House_04': 34082,
+}
+
 
 def resolve_data_dir() -> str:
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -12,7 +25,7 @@ def resolve_data_dir() -> str:
     return os.path.join(project_root, 'data')
 
 
-def unify_columns(df: pd.DataFrame, household_id: str) -> pd.DataFrame:
+def prepare_and_validate_house(df: pd.DataFrame, household_id: str) -> pd.DataFrame:
     df['household_id'] = household_id
     if 'external_temparature' in df.columns and 'external_temperature' in df.columns:
         df['external_temperature'] = df['external_temperature'].combine_first(df['external_temparature'])
@@ -21,7 +34,16 @@ def unify_columns(df: pd.DataFrame, household_id: str) -> pd.DataFrame:
         df.rename(columns={'external_temparature': 'external_temperature'}, inplace=True)
     if 'timestamp' in df.columns:
         df.rename(columns={'timestamp': 'reading_time'}, inplace=True)
-    return df
+
+    missing_columns = set(EXPECTED_COLUMNS) - set(df.columns)
+    if missing_columns:
+        raise ValueError(f"{household_id} is missing required columns: {missing_columns}")
+
+    expected_rows = EXPECTED_COUNTS[household_id]
+    if len(df) != expected_rows:
+        raise ValueError(f"{household_id} row count mismatch: expected {expected_rows}, got {len(df)}")
+
+    return df[EXPECTED_COLUMNS]
 
 
 def main():
@@ -36,24 +58,14 @@ def main():
     for house_id, path in files.items():
         df_house = pd.read_csv(path)
         print(f"{house_id}: {len(df_house):,} rows")
-        dfs.append(unify_columns(df_house, house_id))
+        dfs.append(prepare_and_validate_house(df_house, house_id))
 
     df_combined = pd.concat(dfs, ignore_index=True)
     df_combined['reading_time'] = pd.to_datetime(df_combined['reading_time'])
 
-    expected_columns = [
-        'household_id', 'reading_time', 'V', 'A', 'P_agg',
-        'ac_1', 'ac_2', 'boiler', 'fridge', 'washing_machine',
-        'issues', 'internal_temperature', 'internal_humidity',
-        'external_temperature', 'external_humidity'
-    ]
-    missing_columns = set(expected_columns) - set(df_combined.columns)
-    if missing_columns:
-        raise ValueError(f"Missing required columns: {missing_columns}")
-    df_combined = df_combined[expected_columns]
-
-    if len(df_combined) != 119375:
-        raise ValueError(f"Expected 119,375 records before load, got {len(df_combined)}")
+    expected_total = sum(EXPECTED_COUNTS.values())
+    if len(df_combined) != expected_total:
+        raise ValueError(f"Expected {expected_total} total records before load, got {len(df_combined)}")
 
     null_ts = df_combined['reading_time'].isnull().sum()
     dup_keys = df_combined.duplicated(subset=['household_id', 'reading_time']).sum()
@@ -76,16 +88,26 @@ def main():
     ])
 
     with engine.begin() as conn:
-        conn.execute(text("DELETE FROM dbo.ElectricityReadings; DELETE FROM dbo.Households;"))
+        conn.execute(text("DELETE FROM dbo.ElectricityReadings"))
+        conn.execute(text("DELETE FROM dbo.Households"))
         df_households.to_sql('Households', con=conn, if_exists='append', index=False)
         df_combined.to_sql('ElectricityReadings', con=conn, if_exists='append', index=False, chunksize=5000)
 
     with engine.connect() as conn:
-        count = conn.execute(text("SELECT COUNT(*) FROM dbo.ElectricityReadings")).scalar_one()
-        if count != 119375:
-            raise ValueError(f"Expected 119375 rows in SQL Server, found {count}")
+        total_count = conn.execute(text("SELECT COUNT(*) FROM dbo.ElectricityReadings")).scalar_one()
+        if total_count != expected_total:
+            raise ValueError(f"Expected {expected_total} rows in SQL Server, found {total_count}")
 
-    print(f"Successfully validated {count:,} records in SQL Server.")
+        rows = conn.execute(
+            text("SELECT household_id, COUNT(*) AS cnt FROM dbo.ElectricityReadings GROUP BY household_id")
+        ).fetchall()
+        db_counts = {row[0]: row[1] for row in rows}
+        for house_id, expected_rows in EXPECTED_COUNTS.items():
+            actual_rows = db_counts.get(house_id, 0)
+            if actual_rows != expected_rows:
+                raise ValueError(f"Post-load count mismatch for {house_id}: expected {expected_rows}, found {actual_rows}")
+
+    print(f"Successfully validated {total_count:,} total records and per-household counts in SQL Server.")
 
 
 if __name__ == "__main__":
