@@ -2,26 +2,31 @@
 ## Smart Energy Analytics & Prediction Project
 
 ### Overview
-This document provides comprehensive documentation for the database layer of the Smart Energy Analytics project. It covers the relational schema, data dictionary, validation framework, and analytical views built on Microsoft SQL Server.
+This document provides comprehensive documentation for the database layer of the Smart Energy Analytics project. It covers the relational schema, data dictionary, data transformation and loading pipeline, validation results, and analytical views built on Microsoft SQL Server.
 
 ---
 
 ### Table of Contents
 1. [Schema Design](#1-schema-design)
 2. [Data Dictionary](#2-data-dictionary)
-3. [ETL Pipeline](#3-etl-pipeline)
-4. [Data Validation Results](#4-data-validation-results)
-5. [Analytical Views & Serving Layer](#5-analytical-views--serving-layer)
-6. [Key Business Insights](#6-key-business-insights)
-7. [File Structure](#7-file-structure)
+3. [Data Transformation](#3-data-transformation)
+4. [Data Loading](#4-data-loading)
+5. [Data Validation Results](#5-data-validation-results)
+6. [Analytical Views & Serving Layer](#6-analytical-views--serving-layer)
+7. [Key Business Insights](#7-key-business-insights)
+8. [File Structure](#8-file-structure)
 
 ---
 
 ## 1. Schema Design
 
 **Database:** `ElectricityDB`  
-**Engine:** Microsoft SQL Server (T-SQL)  
-**Architecture:** Relational Model with Parent-Child relationship
+**Engine:** Microsoft SQL Server 2019 (T-SQL)  
+**Architecture:** Relational — Parent/Child (One-to-Many)
+
+The database consists of two relational tables with a One-to-Many (1:N) relationship:
+- **Households:** Parent table with `household_id` as the Primary Key.
+- **ElectricityReadings:** Child table with a Composite Primary Key `(household_id, reading_time)` and a Foreign Key referencing the `Households` table.
 
 ```
 ┌─────────────────────────┐
@@ -51,11 +56,12 @@ This document provides comprehensive documentation for the database layer of the
 ```
 
 ### Design Decisions
+
 | Decision | Justification |
 |---|---|
-| **Composite Primary Key** `(household_id, reading_time)` | Physically prevents duplicate readings for the same house at the same timestamp |
+| **Composite Primary Key** `(household_id, reading_time)` in `ElectricityReadings` | Physically prevents duplicate readings for the same house at the same timestamp |
 | **Foreign Key** on `household_id` | Enforces referential integrity — no reading can exist without a valid household |
-| **Non-Clustered Indexes** | Accelerates time-range queries for dashboard and ML workloads |
+| **Non-Clustered Indexes** on `household_id` and `reading_time` | Accelerates time-range queries for dashboard and ML workloads |
 | **FLOAT data type** for sensor columns | Accommodates decimal precision required for voltage, amperage, and power readings |
 
 ---
@@ -63,7 +69,7 @@ This document provides comprehensive documentation for the database layer of the
 ## 2. Data Dictionary
 
 ### Table: `dbo.Households`
-> Parent table storing metadata for each monitored residence.
+> Parent table storing metadata for each monitored residence. Contains 3 records (one per household).
 
 | Column | Data Type | Constraint | Description |
 |---|---|---|---|
@@ -89,43 +95,29 @@ This document provides comprehensive documentation for the database layer of the
 | `boiler` | `FLOAT` | NULL | Water boiler / heater power (Watts) |
 | `fridge` | `FLOAT` | NULL | Refrigerator power (Watts) |
 | `washing_machine` | `FLOAT` | NULL | Washing machine power (Watts) |
-| `issues` | `FLOAT` | NULL | Synthetic data quality issues score |
+| `issues` | `FLOAT` | NULL | Dataset-provided field — exact semantics to be confirmed from source documentation |
 | `internal_temperature` | `FLOAT` | NULL | Indoor ambient temperature (°C) |
 | `internal_humidity` | `FLOAT` | NULL | Indoor relative humidity (%) |
-| `external_temperature` | `FLOAT` | NULL | Outdoor ambient temperature (°C) |
+| `external_temperature` | `FLOAT` | NULL | Outdoor ambient temperature (°C) — unified from two source column variants (see Section 3) |
 | `external_humidity` | `FLOAT` | NULL | Outdoor relative humidity (%) |
 
 ---
 
-## 3. ETL Pipeline
+## 3. Data Transformation
 
-The ingestion pipeline (`load_data.py`) performs the following stages:
+Before loading into SQL Server, the following transformations were applied to the raw CSV files:
 
-```
-[House_01_cleaned.csv]  ─┐
-[House_03_cleaned.csv]  ─┼──► pd.read_csv()
-[House_04_cleaned.csv]  ─┘
-            │
-            ▼
-    Add household_id column
-            │
-            ▼
-    Handle Schema Drift
-    (House_01: external_temparature typo)
-    combine_first() merges both columns
-            │
-            ▼
-    pd.concat() → 119,375 unified rows
-            │
-            ▼
-    SQLAlchemy → SQL Server connection
-            │
-            ▼
-    to_sql(chunksize=5000) → ElectricityReadings
+### 3.1 Adding Household Identifier
+Each CSV file represents one household. A `household_id` column was added programmatically to tag every row with its source household before concatenation:
+
+```python
+df['household_id'] = 'House_01'   # repeated per file
 ```
 
-### Schema Drift Resolution
-House_01's CSV contained a column named `external_temparature` (typo with **'a'** instead of **'e'**) alongside a correctly named `external_temperature` column. Rather than discarding either column:
+### 3.2 Column Name Unification (Schema Drift Resolution)
+`House_01_cleaned.csv` contained a misspelled column `external_temparature` (with **'a'** instead of **'e'**) alongside the correctly named `external_temperature`. Both columns carried partial data.
+
+Rather than discarding either column, `combine_first()` was used to merge them into a single unified column:
 
 ```python
 df_house_01['external_temperature'] = (
@@ -135,13 +127,72 @@ df_house_01['external_temperature'] = (
 df_house_01.drop(columns=['external_temparature'], inplace=True)
 ```
 
-This preserves all 42,432 outdoor temperature readings for House_01, which are critical for AC-temperature correlation analysis.
+This preserves all 42,432 outdoor temperature readings for House_01, which are critical for AC-temperature correlation analysis. The final column stored in the database is always `external_temperature`.
+
+### 3.3 Column Selection & Alignment
+After concatenation, only the expected schema columns are retained to ensure consistency across all three households:
+
+```python
+expected_columns = [
+    'household_id', 'reading_time', 'V', 'A', 'P_agg',
+    'ac_1', 'ac_2', 'boiler', 'fridge', 'washing_machine',
+    'issues', 'internal_temperature', 'internal_humidity',
+    'external_temperature', 'external_humidity'
+]
+df_combined = df_combined[[col for col in expected_columns if col in df_combined.columns]]
+```
 
 ---
 
-## 4. Data Validation Results
+## 4. Data Loading
 
-All validation checks executed via `02_data_quality_checks.sql`:
+### Source Files
+
+| File | Household | Records |
+|---|---|---|
+| `House_01_cleaned.csv` | House_01 | 42,432 |
+| `House_03_cleaned.csv` | House_03 | 42,861 |
+| `House_04_cleaned.csv` | House_04 | 34,082 |
+| **Total** | | **119,375** |
+
+### Loading Configuration
+
+| Parameter | Value |
+|---|---|
+| **Script** | `load_data.py` |
+| **Libraries** | Python Pandas + SQLAlchemy |
+| **Connection** | `mssql+pyodbc` via ODBC Driver 17 for SQL Server |
+| **Target Database** | `ElectricityDB` on `localhost` |
+| **Target Table** | `dbo.ElectricityReadings` |
+| **Insert Mode** | `append` (non-destructive) |
+| **Chunk Size** | 5,000 rows per batch |
+| **Missing Values** | Preserved as `NULL` where applicable |
+
+### Loading Pipeline
+
+```
+[House_01_cleaned.csv]  ─┐
+[House_03_cleaned.csv]  ─┼──► pd.read_csv()  ──► Add household_id
+[House_04_cleaned.csv]  ─┘
+            │
+            ▼
+    Column unification (external_temparature fix)
+            │
+            ▼
+    pd.concat() → 119,375 unified rows
+            │
+            ▼
+    SQLAlchemy → SQL Server (ElectricityDB)
+            │
+            ▼
+    to_sql(chunksize=5000) → dbo.ElectricityReadings
+```
+
+---
+
+## 5. Data Validation Results
+
+All validation checks were executed via `02_data_quality_checks.sql` after the loading pipeline completed:
 
 | Validation Check | Expected | Actual | Status |
 |---|---|---|---|
@@ -149,13 +200,15 @@ All validation checks executed via `02_data_quality_checks.sql`:
 | House_01 record count | 42,432 | 42,432 | ✅ PASSED |
 | House_03 record count | 42,861 | 42,861 | ✅ PASSED |
 | House_04 record count | 34,082 | 34,082 | ✅ PASSED |
-| Duplicate timestamps | 0 | 0 | ✅ PASSED |
-| Negative power values | 0 | 0 | ✅ PASSED |
-| NULL reading_time | 0 | 0 | ✅ PASSED |
+| Duplicate `(household_id, reading_time)` pairs | 0 | 0 | ✅ PASSED |
+| Negative `P_agg` power values | 0 | 0 | ✅ PASSED |
+| NULL `reading_time` values | 0 | 0 | ✅ PASSED |
+
+All 7 checks passed. The data integrity constraints defined in the schema (Composite PK, FK) are consistent with the validation results.
 
 ---
 
-## 5. Analytical Views & Serving Layer
+## 6. Analytical Views & Serving Layer
 
 Two SQL Views are created in `03_analytical_views.sql` to serve downstream teams:
 
@@ -183,7 +236,7 @@ Pre-computes time-series features using SQL Window Functions:
 
 ---
 
-## 6. Key Business Insights
+## 7. Key Business Insights
 
 Results from `04_business_insights.sql`:
 
@@ -199,7 +252,7 @@ Peak demand occurs between **17:00 – 19:00 (5–7 PM)** driven primarily by:
 - Air Conditioning units responding to afternoon heat buildup
 - Water Boilers activated upon residents returning home
 
-### Temperature Impact
+### Temperature Impact on Energy Consumption
 | Temperature Bracket | Avg Total Power (W) | Avg AC Power (W) |
 |---|---|---|
 | < 15°C | ~850W | ~120W |
@@ -211,15 +264,15 @@ Peak demand occurs between **17:00 – 19:00 (5–7 PM)** driven primarily by:
 
 ---
 
-## 7. File Structure
+## 8. File Structure
 
 ```
 src/database/
-├── 01_create_database.sql        # Database, tables, keys, indexes
-├── 02_data_quality_checks.sql    # Validation framework (5 checks)
-├── 03_analytical_views.sql       # Serving layer views for Dashboard & ML
+├── 01_create_database.sql        # Database, tables, Composite PK, FK, indexes
+├── 02_data_quality_checks.sql    # Validation framework (7 checks)
+├── 03_analytical_views.sql       # Serving layer views for Dashboard & ML teams
 ├── 04_business_insights.sql      # Business analytics queries
-├── load_data.py                  # Python ETL pipeline
+├── load_data.py                  # Python ETL pipeline (Pandas + SQLAlchemy)
 ├── README.md                     # Quick reference schema overview
 └── Docs/
     └── database_documentation.md  # This file — full technical documentation
