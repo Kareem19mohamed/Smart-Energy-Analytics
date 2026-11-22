@@ -14,11 +14,13 @@ is generated to record the injected changes.
 """
 
 from pathlib import Path
+import os
 import random
 import pandas as pd
 
-INPUT_DIR = Path("data/processed")
-OUTPUT_DIR = Path("data/quality_issues")
+DATA_ROOT = Path(os.getenv("DATA_ROOT", "data"))
+INPUT_DIR = DATA_ROOT / "processed"
+OUTPUT_DIR = DATA_ROOT / "quality_issues"
 LOG_PATH = OUTPUT_DIR / "issues_log.csv"
 
 RANDOM_SEED = 42

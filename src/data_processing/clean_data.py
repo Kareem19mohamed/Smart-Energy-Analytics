@@ -10,17 +10,17 @@ median of each column.
 The script validates timestamp and numeric data types before and after
 saving. It must be run from the project root directory.
 """
-
+import os
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-
 # Project directories.
-INPUT_DIR = Path("data/quality_issues")
-REFERENCE_DIR = Path("data/processed")
-OUTPUT_DIR = Path("data/cleaned")
+DATA_ROOT = Path(os.getenv("DATA_ROOT", "data"))
+INPUT_DIR = DATA_ROOT / "quality_issues"
+REFERENCE_DIR = DATA_ROOT / "processed"
+OUTPUT_DIR = DATA_ROOT / "cleaned"
 
 HOUSES = ["House_01", "House_03", "House_04"]
 

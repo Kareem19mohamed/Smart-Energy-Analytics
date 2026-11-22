@@ -1,6 +1,9 @@
 import os
 import pandas as pd
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, inspect
+from sqlalchemy.engine import URL
+
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 EXPECTED_COLUMNS = [
     'household_id', 'reading_time', 'V', 'A', 'P_agg',
@@ -15,14 +18,48 @@ EXPECTED_COUNTS = {
     'House_04': 34082,
 }
 
+SOURCE_FILES = {house: f"{house}_cleaned.csv" for house in EXPECTED_COUNTS}
+
 
 def resolve_data_dir() -> str:
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(os.path.dirname(base_dir))
-    for folder in [os.path.join(project_root, 'data'), os.path.join(project_root, 'data', 'processed'), base_dir]:
+    env_dir = os.getenv("DATA_DIR")
+    if env_dir:
+        return env_dir
+    candidates = [
+        os.path.join(PROJECT_ROOT, 'data', 'cleaned'),
+        os.path.join(PROJECT_ROOT, 'data'),
+        os.path.join(PROJECT_ROOT, 'data', 'processed'),
+    ]
+    for folder in candidates:
         if os.path.exists(os.path.join(folder, 'House_01_cleaned.csv')):
             return folder
-    return os.path.join(project_root, 'data')
+    return os.path.join(PROJECT_ROOT, 'data', 'cleaned')
+
+
+def get_staging_dir() -> str:
+    stage = os.getenv("STAGING_DIR") or os.path.join(PROJECT_ROOT, 'data', 'staging')
+    os.makedirs(stage, exist_ok=True)
+    return stage
+
+
+def get_engine():
+    query = {
+        "driver": os.getenv("SQL_DRIVER", "ODBC Driver 17 for SQL Server"),
+        "TrustServerCertificate": "yes",
+    }
+    user = os.getenv("SQL_USER")
+    if not user:
+        query["trusted_connection"] = "yes"
+    url = URL.create(
+        "mssql+pyodbc",
+        username=user,
+        password=os.getenv("SQL_PASSWORD"),
+        host=os.getenv("SQL_SERVER", "localhost"),
+        port=int(os.getenv("SQL_PORT", "1433")),
+        database=os.getenv("SQL_DATABASE", "ElectricityDB"),
+        query=query,
+    )
+    return create_engine(url, fast_executemany=True)
 
 
 def prepare_and_validate_house(df: pd.DataFrame, household_id: str) -> pd.DataFrame:
@@ -46,68 +83,90 @@ def prepare_and_validate_house(df: pd.DataFrame, household_id: str) -> pd.DataFr
     return df[EXPECTED_COLUMNS]
 
 
-def main():
+# ---------------------------------------------------------------- EXTRACT
+def extract():
+    """Read the cleaned CSV of each house and save it to the staging folder."""
     data_dir = resolve_data_dir()
-    files = {
-        'House_01': os.path.join(data_dir, 'House_01_cleaned.csv'),
-        'House_03': os.path.join(data_dir, 'House_03_cleaned.csv'),
-        'House_04': os.path.join(data_dir, 'House_04_cleaned.csv'),
-    }
+    stage = get_staging_dir()
+    for house_id, filename in SOURCE_FILES.items():
+        df = pd.read_csv(os.path.join(data_dir, filename))
+        print(f"{house_id}: extracted {len(df):,} rows")
+        df.to_csv(os.path.join(stage, f"raw_{house_id}.csv"), index=False)
 
+
+# -------------------------------------------------------------- TRANSFORM
+def transform():
+    """Fix column names, validate each house, merge them and run checks."""
+    stage = get_staging_dir()
     dfs = []
-    for house_id, path in files.items():
-        df_house = pd.read_csv(path)
-        print(f"{house_id}: {len(df_house):,} rows")
-        dfs.append(prepare_and_validate_house(df_house, house_id))
+    for house_id in SOURCE_FILES:
+        df = pd.read_csv(os.path.join(stage, f"raw_{house_id}.csv"))
+        dfs.append(prepare_and_validate_house(df, house_id))
 
     df_combined = pd.concat(dfs, ignore_index=True)
     df_combined['reading_time'] = pd.to_datetime(df_combined['reading_time'])
 
     expected_total = sum(EXPECTED_COUNTS.values())
     if len(df_combined) != expected_total:
-        raise ValueError(f"Expected {expected_total} total records before load, got {len(df_combined)}")
+        raise ValueError(f"Expected {expected_total} total records, got {len(df_combined)}")
 
     null_ts = df_combined['reading_time'].isnull().sum()
     dup_keys = df_combined.duplicated(subset=['household_id', 'reading_time']).sum()
     if null_ts > 0 or dup_keys > 0:
-        raise ValueError(f"Pre-load validation failed: {null_ts} NULL timestamps, {dup_keys} duplicates.")
-    print(f"Pre-load validation passed: {len(df_combined):,} total records, 0 NULL timestamps, 0 duplicates.")
+        raise ValueError(f"Validation failed: {null_ts} NULL timestamps, {dup_keys} duplicates.")
 
-    server_name = os.getenv("SQL_SERVER", "localhost")
-    engine = create_engine(
-        f"mssql+pyodbc://{server_name}/ElectricityDB?driver=ODBC+Driver+17+for+SQL+Server&trusted_connection=yes",
-        fast_executemany=True
-    )
-    with engine.connect() as conn:
-        conn.execute(text("SELECT 1"))
+    df_combined.to_csv(os.path.join(stage, "transformed.csv"), index=False)
+    print(f"Transformed {len(df_combined):,} records, 0 NULL timestamps, 0 duplicates.")
+
+
+# ------------------------------------------------------------------- LOAD
+def load():
+    """Write the transformed data into SQL Server."""
+    stage = get_staging_dir()
+    df_combined = pd.read_csv(os.path.join(stage, "transformed.csv"), parse_dates=['reading_time'])
 
     df_households = pd.DataFrame([
-        {'household_id': 'House_01', 'source_file': 'House_01_cleaned.csv', 'description': 'Smart Residence 01'},
-        {'household_id': 'House_03', 'source_file': 'House_03_cleaned.csv', 'description': 'Smart Residence 03'},
-        {'household_id': 'House_04', 'source_file': 'House_04_cleaned.csv', 'description': 'Smart Residence 04'},
+        {'household_id': h, 'source_file': f, 'description': f"Smart Residence {h[-2:]}"}
+        for h, f in SOURCE_FILES.items()
     ])
 
+    engine = get_engine()
+    inspector = inspect(engine)
     with engine.begin() as conn:
-        conn.execute(text("DELETE FROM dbo.ElectricityReadings"))
-        conn.execute(text("DELETE FROM dbo.Households"))
-        df_households.to_sql('Households', con=conn, if_exists='append', index=False)
-        df_combined.to_sql('ElectricityReadings', con=conn, if_exists='append', index=False, chunksize=5000)
+        if inspector.has_table('ElectricityReadings', schema='dbo'):
+            conn.execute(text("DELETE FROM dbo.ElectricityReadings"))
+        if inspector.has_table('Households', schema='dbo'):
+            conn.execute(text("DELETE FROM dbo.Households"))
+        df_households.to_sql('Households', con=conn, schema='dbo', if_exists='append', index=False)
+        df_combined.to_sql('ElectricityReadings', con=conn, schema='dbo',
+                           if_exists='append', index=False, chunksize=5000)
+    print(f"Loaded {len(df_combined):,} records into SQL Server.")
 
+
+# ----------------------------------------------------------------- VERIFY
+def verify():
+    """Check the counts inside SQL Server against the expected counts."""
+    expected_total = sum(EXPECTED_COUNTS.values())
+    engine = get_engine()
     with engine.connect() as conn:
         total_count = conn.execute(text("SELECT COUNT(*) FROM dbo.ElectricityReadings")).scalar_one()
         if total_count != expected_total:
             raise ValueError(f"Expected {expected_total} rows in SQL Server, found {total_count}")
-
         rows = conn.execute(
-            text("SELECT household_id, COUNT(*) AS cnt FROM dbo.ElectricityReadings GROUP BY household_id")
+            text("SELECT household_id, COUNT(*) FROM dbo.ElectricityReadings GROUP BY household_id")
         ).fetchall()
-        db_counts = {row[0]: row[1] for row in rows}
-        for house_id, expected_rows in EXPECTED_COUNTS.items():
-            actual_rows = db_counts.get(house_id, 0)
-            if actual_rows != expected_rows:
-                raise ValueError(f"Post-load count mismatch for {house_id}: expected {expected_rows}, found {actual_rows}")
+    db_counts = {row[0]: row[1] for row in rows}
+    for house_id, expected_rows in EXPECTED_COUNTS.items():
+        if db_counts.get(house_id, 0) != expected_rows:
+            raise ValueError(f"Count mismatch for {house_id}: expected {expected_rows}, found {db_counts.get(house_id, 0)}")
+    print(f"Verified {total_count:,} total records and per-household counts.")
 
-    print(f"Successfully validated {total_count:,} total records and per-household counts in SQL Server.")
+
+def main():
+    extract()
+    transform()
+    load()
+    verify()
 
 
 if __name__ == "__main__":

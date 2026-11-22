@@ -5,14 +5,16 @@ Orchestrates ingestion, month-by-month temporal resampling,
 environmental dataset alignment, quality issue injection,
 and data cleaning. Run this file to execute the full pipeline.
 """
+import os
 from pathlib import Path
 import pandas as pd
 from src.data_processing import data_ingestion as ingestion, data_transformation as transformation
 from src.data_processing import inject_quality_issues, clean_data
 
-root_dir = Path("C:/Users/kareem/OneDrive/Desktop/target_houses")
-output_folder = Path("data/processed")
-output_folder.mkdir(exist_ok=True)
+PROJECT_ROOT = Path(__file__).resolve().parent
+root_dir = Path(os.getenv("RAW_DATA_DIR", PROJECT_ROOT / "data" / "raw"))
+output_folder = Path(os.getenv("PROCESSED_DIR", PROJECT_ROOT / "data" / "processed"))
+output_folder.mkdir(parents=True, exist_ok=True)
 
 
 def run_pipeline() -> None:

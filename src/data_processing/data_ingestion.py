@@ -13,7 +13,7 @@ def load_files(
     path: str | Path,
     pattern: str,
     exception: str | None = None,
-) -> Generator[tuple[Path, pd.DataFrame]]:
+) -> Generator[tuple[Path, pd.DataFrame], None, None]:
     """
     Search a directory for files matching a pattern and yield (file_path, DataFrame) pairs.
 
